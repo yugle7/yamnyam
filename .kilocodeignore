@@ -1,0 +1,13 @@
+tmp
+tests
+icons
+.idea
+.github
+.env
+privacy.html
+foods.js
+todo.md
+data.js
+favicon.svg
+manifest.webmanifest
+sw.js

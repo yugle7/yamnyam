@@ -10,6 +10,7 @@ feature_graphic
 screenshots
 .env
 .venv
+node_modules
 catboost_info
 trainer_output
 .idea

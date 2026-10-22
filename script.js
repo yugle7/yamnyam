@@ -5,7 +5,7 @@
 const APP_NAME = "num-num";
 
 const NUTRIENT_KEYS = [
-    "kcal",
+    "calories",
     "protein",
     "fat",
     "carbs",
@@ -64,15 +64,10 @@ const MONTH = 2;
 const QUICK_GRAMS = [50, 100, 200, 500];
 const MAX_GRAMS = 5000;
 const DEFAULT_SERVING = 100;
-const STEP_KCAL = 0.0005;
 
 const MEAL_TYPES = [SNACK, BREAKFAST, LUNCH, DINNER];
 const PHOTO_MAX_WIDTH = 1280;
 const PHOTO_QUALITY = 0.82;
-
-const MAINTAIN = 0;
-const LOSE = -1;
-const GAIN = 1;
 
 const DEFAULT_PERSON = {
     sex: 1,
@@ -80,30 +75,25 @@ const DEFAULT_PERSON = {
     height: 175,
     weight: 70,
     activity: 1.375,
-    weightGoal: MAINTAIN,
 };
 
 const LOGS = {
     water: {
-        icon: "droplet",
         max: 10000,
         decimals: 0,
         step: 200,
     },
     sleep: {
-        icon: "moon",
         max: 24,
         decimals: 1,
         step: 0.5,
     },
     steps: {
-        icon: "steps",
         max: 100000,
         decimals: 0,
         step: 500,
     },
     weight: {
-        icon: "scale",
         max: 500,
         decimals: 1,
         step: 0.1,
@@ -117,7 +107,7 @@ const STORAGE_KEYS = [
     "weight",
     "water",
     "sleep",
-    "activity",
+    "steps",
     "tags",
     "favorites",
     "recents",
@@ -144,6 +134,7 @@ let person;
 let meals = [];
 let foods = [];
 let tags = [];
+
 let favorites = [];
 let recents = [];
 
@@ -163,10 +154,6 @@ let chosenButton = null;
 
 let page = null;
 let link = null;
-
-// Indexes are reset when data changes
-let mealsIndex = new Map();
-let frequency = null;
 
 // ==========================================================================
 // 4. UTILS
@@ -207,7 +194,7 @@ const getMonday = (d) => {
     return x;
 };
 
-const weekdayIndex = (d) => (new Date(d).getDay() + 6) % 7;
+const getWeekday = (d) => (new Date(d).getDay() + 6) % 7;
 
 const round = (x, d = 0) => Math.round(x * 10 ** d) / 10 ** d;
 
@@ -243,60 +230,57 @@ const debounce = (fn, ms) => {
     return call;
 };
 
-const emptyNutrition = () =>
-    Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, 0]));
-const emptyMicro = () => Object.fromEntries(MICRO_KEYS.map((k) => [k, null]));
+const emptyNutrition = () => Object.fromEntries(NUTRIENT_KEYS.map(k => [k, 0]));
+const emptyMicro = () => Object.fromEntries(MICRO_KEYS.map(k => [k, 0]));
 
 // ==========================================================================
 // 5. CALCULATIONS
 // ==========================================================================
 
-// The only source of per-meal or per-day aggregates
-const sumMeals = (items) => {
-    const r = {
+const sumItems = (items) => {
+    const dst = {
         grams: 0,
         ...emptyNutrition(),
         micro: emptyMicro(),
         healthScore: null,
     };
     const healthScore = {
-        kcal: 0,
+        calories: 0,
         grams: 0,
     };
     const weight = {
-        kcal: 0,
+        calories: 0,
         grams: 0,
     };
 
     for (const item of items) {
-        const f = item.grams / 100;
-        r.grams += item.grams;
+        const g = item.grams / 100;
+        dst.grams += item.grams;
 
         if (item.nutrition)
-            NUTRIENT_KEYS.forEach((k) => (r[k] += (item.nutrition[k] || 0) * f));
+            NUTRIENT_KEYS.forEach((k) => (dst[k] += (item.nutrition[k] || 0) * g));
 
         if (item.micro)
-            MICRO_KEYS.forEach((k) => (r.micro[k] += (item.micro[k] || 0) * f));
+            MICRO_KEYS.forEach((k) => (dst.micro[k] += (item.micro[k] || 0) * g));
 
         if (item.healthScore) {
-            const kcal = item.nutrition ? (item.nutrition.kcal || 0) * f : 0;
-            weight.kcal += kcal;
-            healthScore.kcal += item.healthScore * kcal;
+            const calories = item.nutrition.calories * g;
+            weight.calories += calories;
+            healthScore.calories += item.healthScore * calories;
             weight.grams += item.grams;
             healthScore.grams += item.healthScore * item.grams;
         }
     }
 
-    if (weight.kcal) r.healthScore = healthScore.kcal / weight.kcal;
-    else if (weight.grams) r.healthScore = healthScore.grams / weight.grams;
-    return r;
+    if (weight.calories) dst.healthScore = healthScore.calories / weight.calories;
+    else if (weight.grams) dst.healthScore = healthScore.grams / weight.grams;
+    return dst;
 };
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
 const computeHealth = (nutrition, micro = {}) => {
-    let {kcal, protein, fat, fiber, freeSugar, salt, satFat, transFat} =
-        nutrition;
+    let {calories, protein, fat, fiber, freeSugar, salt, satFat, transFat} = nutrition;
     const unsatFat = Math.max(0, fat - satFat - transFat);
 
     const microCoverage = Object.entries(micro).reduce(
@@ -306,7 +290,7 @@ const computeHealth = (nutrition, micro = {}) => {
 
     const s =
         90 -
-        10 * clamp01(kcal / 800) -
+        10 * clamp01(calories / 800) -
         30 * clamp01(freeSugar / 10) -
         15 * clamp01(satFat / 10) -
         20 * clamp01(salt / 2) +
@@ -337,52 +321,62 @@ const getAge = (birthdate) => {
     return Math.min(120, Math.max(0, age));
 };
 
-const computeGoals = ({sex, age, height, weight, activity}) => {
-    const kcal = Math.max(
+const getGoals = ({sex, age, height, weight, activity}) => {
+    const calories = Math.max(
         1200,
         (10 * weight + 6.25 * height - 5 * age + (sex ? 5 : -161)) * activity,
     );
     const protein = weight * 1.6;
-    const fat = (kcal * 0.3) / 9;
-    const carbs = Math.max(0, (kcal - protein * 4 - fat * 9) / 4);
+    const fat = calories / 30;
+    const carbs = Math.max(0, (calories - protein * 4 - fat * 9) / 4);
+    const salt = 0.92 + 0.0023 * calories;
     return {
-        kcal,
+        calories,
         protein,
         fat,
         carbs,
-        fiber: (14 * kcal) / 1000,
-        sugar: (kcal * 0.1) / 4,
-        salt: 5,
-        satFat: (kcal * 0.1) / 9,
-        water: weight * 30,
+        fiber: calories * 0.014,
+        sugar: calories / 40,
+        salt,
+        satFat: calories / 90
     };
 };
 
-// Daily targets with defaults derived from the person's data
-const defaultTargets = () => ({
-    sleep: 8,
-    steps: 8000,
-    water: Math.round(person.goals.water),
-    weight: person.weight,
+const getSleep = age =>
+    age < 0.33 ? 15.5 :
+        age < 1 ? 13.5 :
+            age < 3 ? 12.5 :
+                age < 6 ? 11.5 :
+                    age < 14 ? 10 :
+                        age < 18 ? 9 :
+                            age < 65 ? 8 :
+                                7.5;
+
+const getSteps = (age, sex, weight, height) => {
+    const bmi = weight / (height * height) / 10000;
+    return Math.round(675.113 + (66.165 * sex) - (5.353 * age) - (6.593 * bmi));
+}
+
+const getTargets = ({age, sex, weight, height}) => ({
+    sleep: getSleep(age),
+    steps: getSteps(age, sex, weight, height),
+    water: Math.round(weight * 30),
+    weight,
 });
 
 const updatePerson = () => {
     person.age = getAge(person.birthdate);
-    // Ручные нормы перекрывают рассчитанные по параметрам
-    person.goals = {
-        ...computeGoals(person),
-        ...Object.fromEntries(
-            Object.entries(person.goals || {}).filter(([, v]) => v != null),
-        ),
-    };
+    person.goals = getGoals(person);
+    person.targets = getTargets(person);
 };
 
-// The last measurement before noon counts; otherwise it is the first measurement of the day
-const morningWeight = (entries) => {
-    if (!entries.length) return null;
-    const sorted = [...entries].sort((a, b) => a.date - b.date);
-    const morning = sorted.filter((e) => new Date(e.date).getHours() < 12);
-    return morning.length ? morning.at(-1) : sorted[0];
+const getMorningWeight = (weights) => {
+    let weight = null;
+    for (const q of weights) {
+        if (new Date(q.date).getHours() >= 12) return weight || q.value;
+        weight = q.value;
+    }
+    return weight;
 };
 
 const linearRegression = (points) => {
@@ -390,8 +384,8 @@ const linearRegression = (points) => {
     if (n < 2) return null;
     const mx = points.reduce((s, p) => s + p.x, 0) / n;
     const my = points.reduce((s, p) => s + p.y, 0) / n;
-    let sxx = 0,
-        sxy = 0;
+    let sxx = 0;
+    let sxy = 0;
     points.forEach(({x, y}) => {
         sxx += (x - mx) ** 2;
         sxy += (x - mx) * (y - my);
@@ -412,10 +406,8 @@ const computeFromIngredients = (ingredients, yieldGrams) => {
         const f = findFood(foodId);
         if (!f) continue;
         dst.grams += grams;
-        NUTRIENT_KEYS.forEach(
-            (k) => (dst.nutrition[k] += (f.nutrition[k] || 0) * grams),
-        );
-        MICRO_KEYS.forEach((k) => (dst.micro[k] += (f.micro[k] || 0) * grams));
+        NUTRIENT_KEYS.forEach(k => (dst.nutrition[k] += (f.nutrition[k] || 0) * grams),);
+        MICRO_KEYS.forEach(k => (dst.micro[k] += (f.micro[k] || 0) * grams));
     }
 
     const g = 1 / (yieldGrams || dst.grams);
@@ -434,59 +426,36 @@ const findFood = (id) =>
         ? null
         : foods.find((f) => f.id === id) || REFS.find((f) => f.id === id) || null;
 
-const foodName = (f) => (lang === "en" ? f.en : f.ru);
-
-let compiledTagRules;
-
-const autoTags = (name) => {
-    const result = [];
-    for (const [re, tag] of compiledTagRules) {
-        if (re.test(name) && !result.includes(tag)) result.push(tag);
-    }
-    return result;
-};
-
 const prepareRefs = () => {
     REFS.forEach((f) => {
         f.healthScore = computeHealth(f.nutrition, f.micro);
-        f.tags = autoTags(foodName(f));
     });
 };
-
-const ENDINGS = (
-    "ами ями ого его ому ему ыми ими ов ев ей ам ям ах ях ом ем ой ый ий ая яя ое ее ые ие " +
-    "ых их ую юю ть ся а я о е ы и у ю й ь"
-)
-    .split(" ")
-    .sort((a, b) => b.length - a.length);
 
 const normalizeWord = (w) => {
     w = w.toLowerCase().replace(/ё/g, "е");
 
     if (/[а-я]/.test(w)) {
-        for (const e of ENDINGS)
-            if (w.length - e.length >= 3 && w.endsWith(e))
-                return w.slice(0, -e.length);
+        for (const e of ruEndings) {
+            if (w.length - e.length >= 3 && w.endsWith(e)) return w.slice(0, -e.length);
+        }
         return w;
     }
-
     if (/(o|x|ch|sh|ss)es$/.test(w) && w.length >= 5) return w.slice(0, -2);
     if (/[^aeiou]ies$/.test(w) && w.length >= 6) return w.slice(0, -3) + "y";
-    if (w.endsWith("s") && !w.endsWith("ss") && w.length >= 4)
-        return w.slice(0, -1);
+    if (w.endsWith("s") && !w.endsWith("ss") && w.length >= 4) return w.slice(0, -1);
     return w;
 };
 
-const normalizePhrase = (s) =>
-    s
-        .toLowerCase()
-        .replace(/ё/g, "е")
-        .replace(/[^a-zа-я0-9\s-]/g, " ")
-        .trim()
-        .split(/[\s-]+/)
-        .filter(Boolean)
-        .map(normalizeWord)
-        .join(" ");
+const normalizePhrase = s => s
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^a-zа-я0-9\s-]/g, " ")
+    .trim()
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .map(normalizeWord)
+    .join(" ");
 
 const levenshtein = (a, b) => {
     if (a.length < b.length) [a, b] = [b, a];
@@ -511,13 +480,13 @@ const similarity = (a, b) =>
 const phraseSimilarity = (a, b) => {
     if (a === b) return 1;
 
-    const aw = a.split(" ");
-    const bw = b.split(" ");
+    const aWords = a.split(" ");
+    const bWords = b.split(" ");
     const pairs = [];
 
-    for (let i = 0; i < aw.length; i++)
-        for (let j = 0; j < bw.length; j++)
-            pairs.push([similarity(aw[i], bw[j]), i, j]);
+    for (let i = 0; i < aWords.length; i++)
+        for (let j = 0; j < bWords.length; j++)
+            pairs.push([similarity(aWords[i], bWords[j]), i, j]);
 
     pairs.sort((a, b) => b[0] - a[0]);
 
@@ -532,7 +501,7 @@ const phraseSimilarity = (a, b) => {
         usedB.add(j);
     }
 
-    const words = (2 * total) / (aw.length + bw.length);
+    const words = (2 * total) / (aWords.length + bWords.length);
     return 0.9 * words + 0.1 * similarity(a, b);
 };
 
@@ -563,43 +532,43 @@ const matchScore = (food, query) => {
     return score;
 };
 
-const getFrequency = () => {
-    if (!frequency) {
-        frequency = new Map();
-        meals.forEach((m) =>
-            m.items.forEach(({foodId}) => {
-                if (foodId != null)
-                    frequency.set(foodId, (frequency.get(foodId) || 0) + 1);
-            }),
-        );
-    }
-    return frequency;
+let foodsCounter;
+
+const updateFoodsCounter = () => {
+    if (foodsCounter) return;
+    foodsCounter = new Map();
+    meals.forEach((m) =>
+        m.items.forEach(({foodId}) => {
+            if (foodId != null)
+                foodsCounter.set(foodId, (foodsCounter.get(foodId) || 0) + 1);
+        }),
+    );
 };
 
-const activeFoods = () => [...foods.filter((f) => !f.archived), ...REFS];
+const getActiveFoods = () => [...foods.filter((f) => !f.archived), ...REFS];
 
 // Candidate comparison: confidence, custom food, favorites, frequency, shorter name
-const compareMatches = (a, b) => {
-    const f = getFrequency();
+const compareFoodMatches = (a, b) => {
+    updateFoodsCounter();
     return (
         b.confidence - a.confidence ||
         b.food.custom - a.food.custom ||
         favorites.includes(b.food.id) - favorites.includes(a.food.id) ||
-        (f.get(b.food.id) || 0) - (f.get(a.food.id) || 0) ||
-        foodName(a.food).length - foodName(b.food).length
+        (foodsCounter.get(b.food.id) || 0) - (foodsCounter.get(a.food.id) || 0) ||
+        a.food[lang].length - b.food[lang].length
     );
 };
 
-const rankFoods = (text, pool = activeFoods()) => {
-    const query = normalizePhrase(text);
+const rankFoods = (query, activeFoods = getActiveFoods()) => {
+    query = normalizePhrase(query);
     if (!query) return [];
-    return pool
+    return activeFoods
         .map((food) => ({food, confidence: matchScore(food, query)}))
         .filter((m) => m.confidence >= 0.5)
-        .sort(compareMatches);
+        .sort(compareFoodMatches);
 };
 
-const matchFood = (text, pool) => rankFoods(text, pool)[0] || null;
+const matchFood = (text, activeFoods) => rankFoods(text, activeFoods)[0] || null;
 
 // ==========================================================================
 // 7. PARSER
@@ -616,14 +585,11 @@ const unitOf = (word) => {
         /^(кусок|куска|кусков|кусочек|кусочка|кусочков|куски|кусочки|slice|slices)$/.test(
             w,
         )
-    )
-        return "pc";
+    ) return "pc";
     if (/^(чл|tsp)$/.test(w)) return "tsp";
     if (/^(стл|tbsp)$/.test(w) || /^лож/.test(w)) return "tbsp";
-    if (/^(стакан|стакана|стаканов|стаканчик|кружка|чашка|cup|cups)$/.test(w))
-        return "cup";
-    if (/^(порция|порции|порций|порцию|serving|servings)$/.test(w))
-        return "serving";
+    if (/^(стакан|стакана|стаканов|стаканчик|кружка|чашка|cup|cups)$/.test(w)) return "cup";
+    if (/^(порция|порции|порций|порцию|serving|servings)$/.test(w)) return "serving";
     return null;
 };
 
@@ -670,7 +636,7 @@ const parseQuantity = (fragment) => {
 
     const number = text.match(/(\d+(?:[.,]\d+)?)\s*([a-zа-я]+\.?)?/i);
     if (number) {
-        const count = +number[1].replace(",", ".");
+        const count = +number[1].replace(",", ".") || 1;
         let unit = number[2] ? unitOf(number[2]) : null;
         const consumed = unit ? number[0] : number[1];
         // Cut out the number by match position, not the first occurrence in the string
@@ -695,7 +661,7 @@ const parseQuantity = (fragment) => {
 
 const makeItem = (food, grams, source, confidence = 1) => ({
     foodId: food.id,
-    name: foodName(food),
+    name: food[lang],
     grams,
     nutrition: {...food.nutrition},
     micro: {...food.micro},
@@ -804,8 +770,7 @@ const navLinks = {
 const calendar = $("calendar");
 const calendars = $("calendars");
 const chosenDay = $("chosen-day");
-const daySummary = $("day-summary");
-const dayMealsList = $("day-meals");
+const dayMeals = $("day-meals");
 
 /* --- Eating --- */
 const mealDate = $("meal-date");
@@ -837,7 +802,7 @@ const dishServing = $("dish-serving-grams");
 const dishYieldField = $("dish-yield-field");
 const dishYield = $("dish-yield");
 const dishInputs = {
-    kcal: $("dish-kcal"),
+    calories: $("dish-calories"),
     protein: $("dish-protein"),
     fat: $("dish-fat"),
     carbs: $("dish-carbs"),
@@ -935,7 +900,7 @@ const targetInputs = {
 
 const TARGET_KEYS = ['sleep', 'steps', 'water', 'weight'];
 const GOAL_KEYS = [
-    "kcal",
+    "calories",
     "protein",
     "fat",
     "carbs",
@@ -945,7 +910,7 @@ const GOAL_KEYS = [
     "satFat",
 ];
 const goalInputs = {
-    kcal: $("goal-kcal"),
+    calories: $("goal-calories"),
     protein: $("goal-protein"),
     fat: $("goal-fat"),
     carbs: $("goal-carbs"),
@@ -1007,16 +972,6 @@ const setLanguage = () => {
         .map((w) => `<span>${w}</span>`)
         .join("");
 
-    compiledTagRules = (S.tagRules || [])
-        .map(([pattern, tag]) => {
-            try {
-                return [new RegExp(pattern, "i"), tag];
-            } catch {
-                console.warn(`tagRules: invalid pattern "${pattern}"`);
-                return null;
-            }
-        })
-        .filter(Boolean);
 };
 
 // ==========================================================================
@@ -1044,8 +999,8 @@ const write = (key, value) => {
 };
 
 const invalidate = () => {
-    frequency = null;
     calendarPages = {};
+    mealsIndex = null;
 };
 
 const saveMeals = () => {
@@ -1053,15 +1008,11 @@ const saveMeals = () => {
     write("meals", meals);
     updateMealsIndex();
 };
+
 const saveFoods = () => write("foods", foods);
 const saveTags = () => write("tags", tags);
 const saveFavorites = () => write("favorites", favorites);
 const saveRecents = () => write("recents", recents);
-// const saveWeight = () => write("weight", logs.weight);
-// const saveWater = () => write("water", logs.water);
-// const saveSleep = () => write("sleep", logs.sleep);
-// const saveSteps = () => write("steps", logs.steps);
-const saveLogs = (name) => write(name, logs[name]);
 
 const personToStore = () => {
     const {
@@ -1070,7 +1021,6 @@ const personToStore = () => {
         height,
         weight,
         activity,
-        weightGoal,
         targets,
         goals,
     } = person;
@@ -1080,7 +1030,6 @@ const personToStore = () => {
         height,
         weight,
         activity,
-        weightGoal,
         targets,
         goals,
     };
@@ -1093,23 +1042,8 @@ const savePerson = () => {
 };
 
 const loadPerson = () => {
-    person = {...DEFAULT_PERSON, ...read("person", {})};
+    person = read("person", {...DEFAULT_PERSON});
     updatePerson();
-    person.targets = {...defaultTargets(), ...person.targets};
-    person.goals = Object.fromEntries(
-        GOAL_KEYS.filter((k) => person.goals?.[k] != null).map((k) => [
-            k,
-            person.goals[k],
-        ]),
-    );
-};
-
-// Старые данные хранят тип строкой — конвертируем при загрузке
-const STRING_TO_TYPE = {
-    snack: SNACK,
-    breakfast: BREAKFAST,
-    lunch: LUNCH,
-    dinner: DINNER,
 };
 
 const loadMeals = () => {
@@ -1121,7 +1055,7 @@ const loadFoods = () => {
     foods = read("foods", []).filter(Boolean);
 };
 
-const loadJournals = () => {
+const loadLogs = () => {
     logs.weight = read("weight", []);
     logs.water = read("water", []);
     logs.sleep = read("sleep", []);
@@ -1135,25 +1069,33 @@ const loadTags = () => {
 };
 
 const loadAll = () => {
+    invalidate();
     loadPerson();
     loadMeals();
     loadFoods();
-    loadJournals();
+    loadLogs();
     loadTags();
-    invalidate();
 };
+
+const MAX_RECENT = 50;
 
 const updateRecents = (items) => {
     const now = Date.now();
-    items
-        .filter((i) => i.foodId != null)
-        .forEach(({foodId, grams}) => {
-            recents = [
-                {foodId, grams, ts: now},
-                ...recents.filter((r) => r.foodId !== foodId),
-            ];
-        });
-    recents = recents.slice(0, 50);
+
+    const dst = [];
+    const foodIds = new Set();
+
+    for (const {foodId, grams} of items) {
+        if (foodId == null || foodIds.has(foodId)) continue;
+        dst.push({foodId, grams, date: now})
+        foodIds.add(foodId);
+    }
+    for (const q of recents) {
+        if (foodIds.has(q.foodId)) continue;
+        dst.push(q);
+        if (dst.length === MAX_RECENT) break;
+    }
+    recents = dst;
     saveRecents();
 };
 
@@ -1185,7 +1127,7 @@ const IMPORT_ARRAYS = [
     "weight",
     "water",
     "sleep",
-    "activity",
+    "steps",
     "tags",
     "favorites",
     "recents",
@@ -1193,13 +1135,10 @@ const IMPORT_ARRAYS = [
 
 const validImport = (data) => {
     try {
-        const {sex, height, weight, activity, weightGoal, birthdate} =
-            data.person;
+        const {sex, height, weight, activity, birthdate} = data.person;
         return (
             data.app === APP_NAME &&
-            [height, weight, activity, sex, weightGoal, birthdate].every(
-                Number.isFinite,
-            ) &&
+            [height, weight, activity, sex, birthdate].every(Number.isFinite) &&
             IMPORT_ARRAYS.every((k) => Array.isArray(data[k])) &&
             data.meals.every(
                 (m) =>
@@ -1492,28 +1431,22 @@ nav.onclick = (e) => {
     renderPage(button.dataset.page);
 };
 
-// Кнопка добавления приема пищи на странице дневника
 navLinks.meal.onclick = () => openMeal(newMeal(), true);
 
 let openedSheet = null;
-let onSheetClose = null;
 
-const openSheet = (sheet, onClose = null) => {
+const openSheet = (sheet) => {
     closeSheet();
     openedSheet = sheet;
-    onSheetClose = onClose;
     overlay.classList.add("open");
-    sheet.classList.add("open");
+    openedSheet.classList.add("open");
 };
 
 const closeSheet = () => {
     if (!openedSheet) return;
     openedSheet.classList.remove("open");
     overlay.classList.remove("open");
-    const callback = onSheetClose;
     openedSheet = null;
-    onSheetClose = null;
-    if (callback) callback();
 };
 
 overlay.onclick = closeSheet;
@@ -1589,47 +1522,36 @@ const segmentHtml = (attr, options, value) => {
 const healthBar = (score) =>
     score == null
         ? ""
-        : `<div class="healthbar" style="--score:${Math.round(score)};--color:${healthColor(score)}"></div>`;
+        : `<div class="health-bar" style="--score:${Math.round(score)};--color:${healthColor(score)}"></div>`;
 
 // ==========================================================================
 // 14. DIARY
 // ==========================================================================
 
-const getMeals = (d) => mealsIndex.get(d) || [];
+const getMeals = (key) => meals.filter(q => q.key === key);
+const sumMeals = (key) => sumItems(getMeals(key).flatMap((m) => m.items));
 
-const getSumMeals = (d) => {
-    const meals = mealsIndex.get(d);
-    return meals && sumMeals(meals.flatMap((m) => m.items));
+const getValue = (kind, key) => {
+    const res = logs[kind].filter(q => q.key === key);
+    if (res.length) return res.at(-1).value;
+    return kind === 'weight' ? getPrevValue('weight', key) || getNextValue('weight', key) || person.weight : 0;
+}
+
+const getPrevValue = (kind, key) => {
+    const res = logs[kind].filter(q => q.key < key);
+    return res.length ? res.at(-1).value : null;
 };
 
-const dayEntries = (journal, key) =>
-    journal.filter((e) => getDateKey(e.date) === key);
-
-const dayWater = (key) =>
-    dayEntries(logs.water, key).reduce((s, e) => s + e.ml, 0);
-
-// Last weight measured strictly before the given day
-const prevWeight = (key) => {
-    const limit = startOfDay(
-        key instanceof Date ? key : new Date(Math.floor(key / 10000), Math.floor((key % 10000) / 100), key % 100),
-    ).getTime();
-    const past = logs.weight
-        .filter((e) => e.date < limit)
-        .sort((a, b) => a.date - b.date);
-    return past.at(-1)?.weight ?? null;
+const getNextValue = (kind, key) => {
+    const res = logs[kind].filter(q => q.key > key);
+    return res.length ? res[0].value : null;
 };
-
-// A day without measurements: sleep and steps are 0, weight carries over from the previous measurement
-const daySleep = (key) => dayEntries(logs.sleep, key)[0]?.hours ?? 0;
-const daySteps = (key) => dayEntries(logs.activity, key)[0]?.steps ?? 0;
-const dayWeight = (key) =>
-    morningWeight(dayEntries(logs.weight, key))?.weight ?? prevWeight(key);
 
 /* --- Calendar --- */
 
 const getMarkHtml = (s) => {
     if (!s) return "";
-    const ratio = s.kcal / person.goals.kcal;
+    const ratio = s.calories / person.goals.calories;
     const size = Math.min(64, 16 + 24 * ratio);
     return `<i style="width:${size}px;height:${size}px;background:${healthColor(s.healthScore)}"></i>`;
 };
@@ -1655,14 +1577,14 @@ const getCalendarPage = (delta = 0) => {
 
     const first = (new Date(y, m, 1).getDay() + 6) % 7;
     const last = new Date(y, m + 1, 0).getDate();
-    const t = getDateKey(today);
-    const c = getDateKey(date);
+    const todayKey = getDateKey(today);
+    const dateKey = getDateKey(date);
 
     const dayHtml = (n) => {
-        const d = getDateKey(new Date(y, m, n));
-        const s = getSumMeals(d);
-        const color = d > t ? "--help" : "--text";
-        return `<button><span style="color: var(${color})" class="${d === c ? "big" : ""}">${n}</span>${getMarkHtml(s)}</button>`;
+        const key = getDateKey(new Date(y, m, n));
+        const s = sumMeals(key);
+        const color = key > todayKey ? "--help" : "--text";
+        return `<button><span style="color: var(${color})" class="${key === dateKey ? "big" : ""}">${n}</span>${getMarkHtml(s)}</button>`;
     };
 
     let days =
@@ -1670,9 +1592,9 @@ const getCalendarPage = (delta = 0) => {
         '<span class="empty"></span>'.repeat(first);
     for (let i = 1; i <= last; i++) days += dayHtml(i);
 
-    const el = document.createElement("DIV");
-    el.className = "calendar";
-    el.innerHTML = `
+    const dst = document.createElement("DIV");
+    dst.className = "calendar";
+    dst.innerHTML = `
         <h2 class="row">
             <button class="prev" aria-label="${S.previous}"><svg><use href="sprite.svg#prev"></use></svg></button>
             <span class="big">${S.months[m]} ${y}</span>
@@ -1680,8 +1602,8 @@ const getCalendarPage = (delta = 0) => {
         </h2>
         <div class="days">${days}</div>`;
 
-    calendarPages[k] = el;
-    return el;
+    calendarPages[k] = dst;
+    return dst;
 };
 
 const renderPageCalendar = () => {
@@ -1784,7 +1706,7 @@ calendar.addEventListener("pointercancel", stopDragging);
 /* --- Summary, logs, meal list --- */
 
 const mealHtml = (m) => {
-    const s = sumMeals(m.items);
+    const s = sumItems(m.items);
     const names = m.items.map((i) => clean(i.name)).join(" · ");
     const tagHtml = m.tags
         .map((t) => `<span class="small help">${clean(t)}</span>`)
@@ -1799,7 +1721,7 @@ const mealHtml = (m) => {
             <span class="time mono">${getTimeText(m.eaten)}</span>
             <span class="type small help">${S.mealTypes[m.type]}</span>
             ${photo}
-            <span class="kcal mono right">${fmt(s.kcal)} ${S.kcalUnit}</span>
+            <span class="cal mono right">${fmt(s.cal)} ${S.cal}</span>
         </div>
         <div class="items small help">${names}</div>
         ${healthBar(s.healthScore)}
@@ -1807,9 +1729,9 @@ const mealHtml = (m) => {
 };
 
 const renderDayMeals = () => {
-    const list = getMeals(getDateKey(date));
-    dayMealsList.innerHTML = list.length
-        ? list.map(mealHtml).join("")
+    const src = getMeals(getDateKey(date));
+    dayMeals.innerHTML = src.length
+        ? src.map(mealHtml).join("")
         : `<div class="small help center pad-20">${S.noRecords}</div>`;
 };
 
@@ -1828,14 +1750,12 @@ const renderDiary = () => {
     renderDay();
 };
 
-dayMealsList.onclick = (e) => {
+dayMeals.onclick = (e) => {
     const button = e.target.closest("button.meal");
     if (!button) return;
     const created = +button.dataset.created;
     openMeal(structuredClone(meals.find((m) => m.created === created)), false);
 };
-
-// daySummary.onclick = () => openStatsSheet();
 
 // ==========================================================================
 // 15. DAY LOG (#log-sheet)
@@ -1843,20 +1763,12 @@ dayMealsList.onclick = (e) => {
 
 let logKind = null;
 
-const logCurrent = (kind, key) =>
-    ({
-        water: () => dayWater(key) || null,
-        sleep: () => daySleep(key) || null,
-        steps: () => daySteps(key) || null,
-        weight: () => dayWeight(key),
-    })[kind]();
-
 const openLogSheet = (kind) => {
     logKind = kind;
     const {decimals} = LOGS[kind];
-    logTitle.textContent = `${S[kind]} · ${getDateText(date)}`;
+    logTitle.textContent = S[kind];
     logUnit.textContent = S.logUnits[kind];
-    logValue.value = fmt(logCurrent(kind, getDateKey(date)), decimals);
+    logValue.value = fmt(getValue(kind, getDateKey(date)), decimals);
     logValue.inputMode = decimals ? "decimal" : "numeric";
     openSheet(logSheet);
 };
@@ -1889,9 +1801,9 @@ applyLog.onclick = () => {
     const value = parseNumber(logValue.value);
 
     logs[logKind] = logs[logKind].filter(q => q.key !== key);
-    logs[logKind].push({key, date: new Date(), value: (value || 0)});
+    logs[logKind].push({key, date: new Date().getTime(), value: (value || 0)});
 
-    if (logKind === "water") {
+    if (logKind === "weight") {
         updatePersonWeight();
         savePerson();
     }
@@ -1909,24 +1821,11 @@ closeLog.onclick = closeSheet;
 
 const RING_LENGTH = 2 * Math.PI * 28;
 
-const ringHtml = (value, goal, color, label, unit) => {
-    const ratio = goal ? value / goal : 0;
-    return `<div class="ring">
-        <svg viewBox="0 0 64 64" aria-hidden="true">
-            <circle class="track" cx="32" cy="32" r="28"></circle>
-            <circle class="fill" cx="32" cy="32" r="28" transform="rotate(-90 32 32)"
-                style="stroke:var(${ratio > 1.1 ? "--red" : color});stroke-dasharray:${RING_LENGTH * Math.min(1, ratio)} ${RING_LENGTH}"></circle>
-        </svg>
-        <div class="ring-value mono">${fmt(value)}</div>
-        <div class="small help center">${label}</div>
-    </div>`;
-};
-
-const microEntries = (micro, factor = 1) =>
+const microEntries = (micro, g = 1) =>
     MICRO_KEYS.map((k) => ({
         label: `${S[k]}`,
         value:
-            micro[k] == null ? null : ((micro[k] * factor) / MICRO_NORMALS[k]) * 100,
+            micro[k] == null ? null : ((micro[k] * g) / MICRO_NORMALS[k]) * 100,
     }));
 
 const microBarsHtml = (entries) =>
@@ -1945,7 +1844,7 @@ const microBarsHtml = (entries) =>
 
 const renderDayMicro = () => {
     const d = getDateKey(date);
-    const s = getSumMeals(d);
+    const s = sumMeals(d);
 
     dayMicro.innerHTML = s ? microBarsHtml(microEntries(s.micro)) : '';
 };
@@ -2134,13 +2033,12 @@ const recentPicks = () =>
         .filter((p) => p.food && !p.food.archived)
         .slice(0, 10);
 
-const frequentPicks = () =>
-    [...getFrequency().entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(([id]) => findFood(id))
-        .filter((f) => f && !f.archived)
-        .slice(0, 10)
-        .map((food) => ({food, grams: food.servingGrams || DEFAULT_SERVING}));
+const frequentPicks = () => [...foodsCounter.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => findFood(id))
+    .filter((f) => f && !f.archived)
+    .slice(0, 10)
+    .map((food) => ({food, grams: food.servingGrams || DEFAULT_SERVING}));
 
 const renderQuickPicks = () => {
     const lists = {recent: recentPicks(), frequent: frequentPicks()};
@@ -2148,8 +2046,9 @@ const renderQuickPicks = () => {
         "hidden",
         !lists.recent.length && !lists.frequent.length,
     );
-    if (!lists[quickTab].length)
+    if (!lists[quickTab].length) {
         quickTab = lists.recent.length ? "recent" : "frequent";
+    }
 
     quickPicks.innerHTML =
         segmentHtml(
@@ -2161,12 +2060,11 @@ const renderQuickPicks = () => {
             quickTab,
         ) +
         `<div class="chips">${lists[quickTab]
-            .map(
-                ({food, grams}) =>
-                    `<button class="tap chip" data-id="${food.id}" data-grams="${grams}">${clean(foodName(food))}
-            <span class="help mono">${grams} ${S.g}</span></button>`,
-            )
-            .join("")}</div>`;
+            .map(({food, grams}) =>
+                `<button class="tap chip" data-id="${food.id}" data-grams="${grams}">${clean(food[lang])}
+                <span class="help mono">${grams} ${S.g}</span></button>`)
+            .join("")}
+        </div>`;
 };
 
 quickPicks.onclick = (e) => {
@@ -2193,17 +2091,17 @@ const dotColor = (item) => {
 };
 
 const macrosText = (n, f) =>
-    `${fmt(n.kcal)} ${S.kcalUnit} · ${S.protein[0]} ${fmt(n.protein * f)} · ${S.fat[0]} ${fmt(n.fat * f)} · ${S.carbs[0]} ${fmt(n.carbs * f)}`;
+    `${fmt(n.calories)} ${S.kcal} · ${S.protein[0]} ${fmt(n.protein * f)} · ${S.fat[0]} ${fmt(n.fat * f)} · ${S.carbs[0]} ${fmt(n.carbs * f)}`;
 
 const itemHtml = (item, i) => {
     const n = item.nutrition;
-    const f = item.grams / 100;
+    const g = item.grams / 100;
     const dot =
         item.source === "parse"
             ? `<span class="dot" style="--dot:var(${dotColor(item)})"></span>`
             : "";
     const info = n
-        ? `<span>${fmt(n.kcal * f)} ${S.kcalUnit}</span><span>${macrosText(n, f)}</span>`
+        ? `<span>${fmt(n.calories * g)} ${S.kcal}</span><span>${macrosText(n, g)}</span>`
         : `<span class="red">${S.notFound}</span>`;
     return `<div class="card-item ${isProblem(item) ? "bad" : ""}" data-i="${i}" role="button" tabindex="0">
         <div class="row gap-10">
@@ -2217,11 +2115,11 @@ const itemHtml = (item, i) => {
 };
 
 const renderItems = () => {
-    const s = sumMeals(meal.items);
+    const s = sumItems(meal.items);
     mealItems.innerHTML =
         meal.items.map(itemHtml).join("") +
         (meal.items.length
-            ? `<div class="total small mono">${S.total} ${fmt(s.kcal)} ${S.kcalUnit} · ${macrosText(s, 1)}</div>`
+            ? `<div class="total small mono">${S.total} ${fmt(s.calories)} ${S.kcal} · ${macrosText(s, 1)}</div>`
             : "");
     renderCta();
 };
@@ -2242,14 +2140,14 @@ mealItems.onkeydown = (e) => {
 /* --- Tags --- */
 
 const renderMealTags = () => {
-    const list = [...tags, ...[...mealTags].filter((t) => !tags.includes(t))];
-    tagButtons.innerHTML = list
+    const dst = [...tags, ...[...mealTags].filter(tag => !tags.includes(tag))];
+    tagButtons.innerHTML = dst
         .map(
             (tag) =>
                 `<button class="tap ${mealTags.has(tag) ? "selected" : ""}">${clean(tag)}</button>`,
         )
         .join("");
-    [...tagButtons.children].forEach((el, i) => (el.dataset.tag = list[i]));
+    [...tagButtons.children].forEach((q, i) => (q.dataset.tag = dst[i]));
 };
 
 // Shared tag-chip handler for meals and the product editor
@@ -2259,8 +2157,7 @@ const bindTagChips = (container, getSet) =>
         if (!button) return;
         const tag = button.dataset.tag;
         const set = getSet();
-        if (set.has(tag)) set.delete(tag);
-        else set.add(tag);
+        set.has(tag) ? set.delete(tag) : set.add(tag);
         button.classList.toggle("selected");
     });
 
@@ -2268,8 +2165,7 @@ bindTagChips(tagButtons, () => mealTags);
 
 /* --- Note --- */
 
-mealNote.addEventListener(
-    "input",
+mealNote.addEventListener("input",
     debounce(() => {
         if (meal) meal.note = mealNote.value;
     }, 300),
@@ -2285,13 +2181,16 @@ const renderCta = () => {
 
 const stripFragment = ({fragment, ...item}) => item;
 
+let mealsIndex = null;
+
 const updateMealsIndex = () => {
+    if (mealsIndex) return;
+
     mealsIndex = new Map();
     meals = meals.sort((a, b) => a.eaten - b.eaten);
     meals.forEach((m) => {
-        const d = getDateKey(m.eaten);
-        if (!mealsIndex.has(d)) mealsIndex.set(d, []);
-        mealsIndex.get(d).push(m);
+        if (!mealsIndex.has(m.key)) mealsIndex.set(m.key, []);
+        mealsIndex.get(m.key).push(m);
     });
 };
 const saveMeal = () => {
@@ -2309,8 +2208,7 @@ const saveMeal = () => {
 
     saveMeals();
     updateRecents(meal.items);
-    if (originalPhotoId != null && originalPhotoId !== meal.photoId)
-        deletePhoto(originalPhotoId);
+    if (originalPhotoId != null && originalPhotoId !== meal.photoId) deletePhoto(originalPhotoId);
 
     date = new Date(meal.eaten);
     meal = null;
@@ -2333,15 +2231,14 @@ cancelButton.onclick = () => {
     toDiaryPage();
 };
 
-mealDelete.onclick = () =>
-    showModal(S.deleteMealQuestion, () => {
-        meals = meals.filter((m) => m.created !== meal.created);
-        saveMeals();
-        addedPhotos.forEach(deletePhoto);
-        if (originalPhotoId != null) deletePhoto(originalPhotoId);
-        meal = null;
-        toDiaryPage();
-    });
+mealDelete.onclick = () => showModal(S.deleteMealQuestion, () => {
+    meals = meals.filter((m) => m.created !== meal.created);
+    saveMeals();
+    addedPhotos.forEach(deletePhoto);
+    if (originalPhotoId != null) deletePhoto(originalPhotoId);
+    meal = null;
+    toDiaryPage();
+});
 
 // ==========================================================================
 // 18. SEARCH (#search-sheet)
@@ -2364,57 +2261,58 @@ const openSearch = (type, options = {}) => {
 };
 
 const renderSearchTabs = () => {
-    searchTabs.innerHTML = SEARCH_TABS.map(
-        (tab) =>
-            `<button class="tap chip ${tab === searchTab ? "selected" : ""}" data-tab="${tab}">${S.searchTabs[tab]}</button>`,
+    searchTabs.innerHTML = SEARCH_TABS.map((tab) =>
+        `<button class="tap chip ${tab === searchTab ? "selected" : ""}" data-tab="${tab}">${S.searchTabs[tab]}</button>`,
     ).join("");
 };
 
-const searchPool = () => {
-    let pool = activeFoods();
-    if (searchTab === "favorites")
-        pool = pool.filter((f) => favorites.includes(f.id));
-    else if (searchTab !== "all") pool = pool.filter((f) => f.kind === searchTab);
-    if (searchContext.type === "ingredient" && dish?.editing)
-        pool = pool.filter((f) => f.id !== dish.editing.id);
-    return pool;
+const searchActiveFoods = () => {
+    let dst = getActiveFoods();
+    if (searchTab === "favorites") {
+        dst = dst.filter((f) => favorites.includes(f.id));
+    } else if (searchTab !== "all") {
+        dst = dst.filter((f) => f.kind === searchTab);
+    }
+    if (searchContext.type === "ingredient" && dish?.editing) {
+        dst = dst.filter((f) => f.id !== dish.editing.id);
+    }
+    return dst;
 };
 
 const searchFoods = (query) => {
-    const pool = searchPool();
+    const dst = searchActiveFoods();
     if (!query.trim()) {
-        return pool
-            .sort((a, b) => foodName(a).localeCompare(foodName(b), S.locale))
+        return dst
+            .sort((a, b) => a[lang].localeCompare(b[lang], S.locale))
             .slice(0, 50);
     }
-    return rankFoods(query, pool)
+    return rankFoods(query, dst)
         .slice(0, 50)
         .map((m) => m.food);
 };
 
-const resultHtml = (f) => {
-    const fav = favorites.includes(f.id);
-    const edit =
-        f.custom && searchContext.type === "meal"
-            ? `<button class="icon-button" data-act="edit" aria-label="${S.edit}"><svg class="tool"><use href="sprite.svg#edit"></use></svg></button>`
-            : "";
-    return `<div class="result" data-id="${f.id}" role="button" tabindex="0">
+const resultHtml = (food) => {
+    const favorite = favorites.includes(food.id);
+    const edit = food.custom && searchContext.type === "meal"
+        ? `<button class="icon-button" data-act="edit" aria-label="${S.edit}"><svg class="tool"><use href="sprite.svg#edit"></use></svg></button>`
+        : "";
+    return `<div class="result" data-id="${food.id}" role="button" tabindex="0">
         <div class="col grow">
-            <span>${clean(foodName(f))}</span>
-            <span class="small help mono">${fmt(f.nutrition.kcal)} ${S.kcalPer100}</span>
-            ${healthBar(f.healthScore)}
+            <span>${clean(f[lang])}</span>
+            <span class="small help mono">${fmt(food.nutrition.calories)} ${S.kcalPer100}</span>
+            ${healthBar(food.healthScore)}
         </div>
-        <button class="icon-button" data-act="fav" aria-label="${S.favorites}" aria-pressed="${fav}">
-            <svg class="tool ${fav ? "starred" : ""}"><use href="sprite.svg#${fav ? "star-filled" : "star"}"></use></svg>
+        <button class="icon-button" data-act="fav" aria-label="${S.favorites}" aria-pressed="${favorite}">
+            <svg class="tool ${favorite ? "starred" : ""}"><use href="sprite.svg#${favorite ? "star-filled" : "star"}"></use></svg>
         </button>
         ${edit}
     </div>`;
 };
 
 const renderSearchResults = () => {
-    const list = searchFoods(searchInput.value);
-    searchResults.innerHTML = list.length
-        ? list.map(resultHtml).join("")
+    const dst = searchFoods(searchInput.value);
+    searchResults.innerHTML = dst.length
+        ? dst.map(resultHtml).join("")
         : `<div class="empty">${S.nothingFound}</div>`;
     searchCreate.textContent = searchInput.value.trim()
         ? `${S.create} «${searchInput.value.trim()}»`
@@ -2476,12 +2374,12 @@ const pickFood = (food) => {
 };
 
 searchResults.onclick = (e) => {
-    const row = e.target.closest(".result");
-    if (!row) return;
-    const food = findFood(+row.dataset.id);
+    const q = e.target.closest(".result");
+    if (!q) return;
+    const food = findFood(+q.dataset.id);
     const act = e.target.closest("button")?.dataset.act;
 
-    if (act === "fav") {
+    if (act === "favorite") {
         toggleFavorite(food.id);
         return renderSearchResults();
     }
@@ -2493,9 +2391,9 @@ searchResults.onclick = (e) => {
 };
 
 searchResults.onkeydown = (e) => {
-    const row = e.target.closest(".result");
-    if (row && e.target === row && e.key === "Enter")
-        pickFood(findFood(+row.dataset.id));
+    const q = e.target.closest(".result");
+    if (q && e.target === q && e.key === "Enter")
+        pickFood(findFood(+q.dataset.id));
 };
 
 searchCreate.onclick = () => {
@@ -2524,16 +2422,16 @@ const renderPortionInfo = () => {
         portionInfo.innerHTML = "";
         return;
     }
-    const f = grams / 100;
+    const g = grams / 100;
     // Compact list: only micronutrients that matter (>= 10% of daily value)
     const micro = item.micro
-        ? microEntries(item.micro, f)
+        ? microEntries(item.micro, g)
             .filter((e) => e.value >= 10)
             .sort((a, b) => b.value - a.value)
         : [];
     portionInfo.innerHTML = `
-        <div class="center mono">${fmt(n.kcal * f)} ${S.kcalUnit}</div>
-        <div class="center small help mono">${macrosText(n, f)}</div>
+        <div class="center mono">${fmt(n.calories * g)} ${S.kcal}</div>
+        <div class="center small help mono">${macrosText(n, g)}</div>
         ${healthBar(item.healthScore)}
         ${micro.length ? `<div class="micro-chips">${micro.map((e) => `<span class="micro-chip mono">${e.label} ${Math.round(e.value)}%</span>`).join("")}</div>` : ""}`;
 };
@@ -2560,11 +2458,11 @@ const openPortion = (i) => {
     portionCreate.classList.toggle("hidden", item.foodId != null);
     portionConfirmItem.classList.toggle(
         "hidden",
-        !(
-            item.source === "parse" &&
-            item.confidence < 0.8 &&
-            !item.confirmed &&
-            item.foodId != null
+        (
+            item.source !== "parse" ||
+            item.confidence >= 0.8 ||
+            item.confirmed ||
+            item.foodId == null
         ),
     );
 
@@ -2578,7 +2476,7 @@ portionGrams.addEventListener("input", renderPortionInfo);
 portionQuick.onclick = (e) => {
     const button = e.target.closest("button");
     if (!button) return;
-    portionGrams.value = button.dataset.g;
+    portionGrams.value = button.dataset.grams;
     renderPortionInfo();
 };
 
@@ -2625,7 +2523,7 @@ const openTagEditor = () => {
 };
 
 const applyTagEditor = () => {
-    tags = [...tagActions.children].map((el) => el.dataset.tag);
+    tags = [...tagActions.children].map(q => q.dataset.tag);
     saveTags();
     closeSheet();
     renderMealTags();
@@ -2637,14 +2535,14 @@ applyTags.onclick = applyTagEditor;
 
 createTagButton.onclick = (e) => {
     e.preventDefault();
-    const value = tagInput.value.trim();
-    if (!value || [...tagActions.children].some((el) => el.dataset.tag === value))
+    const tag = tagInput.value.trim();
+    if (!tag || [...tagActions.children].some(q => q.dataset.tag === tag))
         return;
 
     const button = document.createElement("BUTTON");
     button.className = "tap red";
-    button.textContent = value;
-    button.dataset.tag = value;
+    button.textContent = tag;
+    button.dataset.tag = tag;
 
     tagInput.value = "";
     tagInput.focus();
@@ -2663,54 +2561,15 @@ tagActions.onclick = (e) => {
 // 21. DATE PICKER/TIME (#when-picker)
 // ==========================================================================
 
-const CX = 125,
-    CY = 125,
-    R_OUT = 100,
-    R_IN = 70,
-    HAND_RADIUS = 16;
+const CX = 125;
+const CY = 125;
+const R_OUT = 100;
+const R_IN = 70;
+const HAND_RADIUS = 16;
 
-const MINUTE_LABELS = [
-    "00",
-    "05",
-    "10",
-    "15",
-    "20",
-    "25",
-    "30",
-    "35",
-    "40",
-    "45",
-    "50",
-    "55",
-];
-const HOUR_LABELS_AM = [
-    "0",
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "10",
-    "11",
-];
-const HOUR_LABELS_PM = [
-    "12",
-    "13",
-    "14",
-    "15",
-    "16",
-    "17",
-    "18",
-    "19",
-    "20",
-    "21",
-    "22",
-    "23",
-];
+const MINUTE_LABELS = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+const HOUR_LABELS_AM = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"];
+const HOUR_LABELS_PM = ["12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23"];
 
 let add = null;
 let update = null;
@@ -2810,14 +2669,14 @@ const renderWhenCalendar = () => {
     const m = whenMonth.getMonth();
     const first = (new Date(y, m, 1).getDay() + 6) % 7;
     const last = new Date(y, m + 1, 0).getDate();
-    const t = getDateKey(new Date());
-    const s = getDateKey(whenDate);
+    const todayKey = getDateKey(new Date());
+    const dateKey = getDateKey(whenDate);
 
     const getDayType = (n) => {
-        const d = getDateKey(new Date(y, m, n));
-        if (d === s) return "selected";
-        if (d === t) return "today";
-        if (d > t) return "future";
+        const key = getDateKey(new Date(y, m, n));
+        if (key === dateKey) return "selected";
+        if (key === todayKey) return "today";
+        if (key > todayKey) return "future";
         return "";
     };
 
@@ -2845,6 +2704,7 @@ const applyWhenPicker = () => {
     const eaten = new Date(whenDate);
     eaten.setHours(hour, minute, 0, 0);
     meal.eaten = eaten.getTime();
+    meal.key = getDateKey(whenDate);
     if (!typeTouched) meal.type = autoType(meal.eaten);
     renderMealHeader();
     closeSheet();
@@ -2918,11 +2778,10 @@ let dish = null;
 
 const CUSTOM_ID_START = 1000000;
 
-const nextFoodId = () =>
-    Math.max(CUSTOM_ID_START - 1, ...foods.map((f) => f.id)) + 1;
+const nextFoodId = () => Math.max(CUSTOM_ID_START - 1, ...foods.map((f) => f.id)) + 1;
 
 const DISH_LIMITS = {
-    kcal: [900, 1],
+    calories: [900, 1],
     protein: [100, 1],
     fat: [100, 1],
     carbs: [100, 1],
@@ -2936,22 +2795,31 @@ const DISH_LIMITS = {
 const PREFILLED = ["fiber", "sugar", "salt", "satFat"];
 
 const openDishPage = ({food = null, name = "", action}) => {
-    dish = {
-        editing: food,
-        action,
-        kind: food?.kind || "product",
-        basis: "100",
-        ingredients: food ? food.ingredients.map((i) => ({...i})) : [],
-        micro: food?.micro || null,
-        refName: null,
-        autoTags: food ? [...food.tags] : autoTags(name),
-        tags: new Set(food ? food.tags : autoTags(name)),
-        photoId: food?.photoId ?? null,
-        originalPhotoId: food?.photoId ?? null,
-        addedPhotos: [],
-    };
 
-    dishName.value = food ? foodName(food) : name;
+    dish = food
+        ? {
+            editing: food,
+            action,
+            kind: food.kind,
+            basis: "100",
+            ingredients: food.ingredients.map((i) => ({...i})),
+            micro: food.micro,
+            tags: [...food.tags],
+            photoId: food.photoId,
+            originalPhotoId: food.photoId,
+            addedPhotos: []
+        }
+        : {
+            action,
+            kind: "product",
+            basis: "100",
+            ingredients: [],
+            micro: emptyMicro(),
+            tags: [],
+            addedPhotos: [],
+        };
+
+    dishName.value = food ? food[lang] : name;
     Object.entries(dishInputs).forEach(([k, input]) => {
         input.value = food ? fmt(food.nutrition[k], DISH_LIMITS[k][1]) : "";
         delete input.dataset.auto;
@@ -2980,8 +2848,9 @@ const closeDishPage = (food) => {
     dish = null;
     renderPage("meal", false);
 
-    if (food && action.type === "add")
+    if (food && action.type === "add") {
         meal.items.push(makeItem(food, food.servingGrams, "manual"));
+    }
     if (food && action.type === "replace") {
         const old = meal.items[action.index];
         meal.items[action.index] = {
@@ -3022,7 +2891,7 @@ const prefill = (input, value, decimals) => {
 
 const matchRef = () => {
     const match = matchFood(dishName.value, REFS);
-    dish.refName = match ? foodName(match.food) : null;
+    dish.refName = match ? match.food[lang] : null;
     if (!dish.editing || match) dish.micro = match?.food.micro || null;
 
     if (match) {
@@ -3040,8 +2909,7 @@ const matchRefLater = debounce(() => {
 }, 400);
 
 dishName.addEventListener("input", () => {
-    dish.autoTags = autoTags(dishName.value);
-    dish.tags = new Set(dish.autoTags);
+    dish.tags = [];
     renderDishTags();
     matchRefLater();
     updateDish();
@@ -3072,16 +2940,16 @@ const readDish = () => {
 
     if (dish.kind === "recipe") {
         const yieldGrams = parseNumber(dishYield.value);
-        const r = computeFromIngredients(dish.ingredients, yieldGrams);
-        const out = yieldGrams || r.grams;
+        const recipe = computeFromIngredients(dish.ingredients, yieldGrams);
+        const grams = yieldGrams || recipe.grams;
         return {
             valid: !!name && dish.ingredients.length > 0 && r.grams > 0,
-            nutrition: r.nutrition,
-            micro: r.micro,
-            grams: r.grams,
-            servingGrams: serving || out || DEFAULT_SERVING,
-            yieldGrams: out || null,
-            recipe: r,
+            nutrition: recipe.nutrition,
+            micro: recipe.micro,
+            grams: recipe.grams,
+            servingGrams: serving || grams || DEFAULT_SERVING,
+            yieldGrams: grams || null,
+            recipe,
         };
     }
 
@@ -3098,7 +2966,7 @@ const readDish = () => {
     return {
         valid:
             !!name &&
-            values.kcal != null &&
+            values.calories != null &&
             base > 0 &&
             nutrition.protein + nutrition.fat + nutrition.carbs <= 100,
         nutrition,
@@ -3110,26 +2978,26 @@ const readDish = () => {
 
 const updateDish = () => {
     if (!dish) return;
-    const r = readDish();
+    const dst = readDish();
 
     if (dish.kind === "recipe") {
         Object.entries(dishInputs).forEach(([k, input]) => {
-            input.value = fmt(r.nutrition[k], DISH_LIMITS[k][1]);
+            input.value = fmt(dst.nutrition[k], DISH_LIMITS[k][1]);
         });
-        ingredientsTotal.textContent = r.recipe.grams
-            ? `${fmt(r.grams)} ${S.g} · ${macrosText(r.nutrition, 1)}`
+        ingredientsTotal.textContent = dst.recipe.grams
+            ? `${fmt(dst.grams)} ${S.g} · ${macrosText(dst.nutrition, 1)}`
             : "";
         renderIngredientKcal();
     }
     dishServing.placeholder = String(
-        dish.kind === "recipe" && r.yieldGrams ? r.yieldGrams : 100,
+        dish.kind === "recipe" && dst.yieldGrams ? dst.yieldGrams : 100,
     );
 
-    dishSave.disabled = !r.valid;
+    dishSave.disabled = !dst.valid;
     dishMicroSource.textContent =
         dish.kind !== "recipe" && dish.refName ? S.microFrom(dish.refName) : "";
-    const factor = r.servingGrams / 100;
-    dishMicroBars.innerHTML = `<div class="h-list">${microBarsHtml(microEntries(r.micro || emptyMicro(), factor))}</div>`;
+    const factor = dst.servingGrams / 100;
+    dishMicroBars.innerHTML = `<div class="h-list">${microBarsHtml(microEntries(dst.micro || emptyMicro(), factor))}</div>`;
 };
 
 toggleMicro.onclick = () => {
@@ -3144,10 +3012,10 @@ const renderIngredients = () => {
         .map(({foodId, grams}, i) => {
             const f = findFood(foodId);
             return `<div class="ingredient row gap-10" data-i="${i}">
-            <span class="grow">${clean(f ? foodName(f) : "?")}</span>
+            <span class="grow">${clean(f ? f[lang] : "?")}</span>
             <input class="input grams-input mono" inputmode="numeric" value="${grams}" aria-label="${S.g}">
             <span class="help small">${S.g}</span>
-            <span class="kcal small mono help"></span>
+            <span class="cal small mono help"></span>
             <button class="icon-button" data-act="remove" aria-label="${S.delete}">
                 <svg class="tool"><use href="sprite.svg#close"></use></svg>
             </button>
@@ -3158,11 +3026,12 @@ const renderIngredients = () => {
 };
 
 const renderIngredientKcal = () => {
-    ingredientsList.querySelectorAll(".ingredient").forEach((row) => {
-        const {foodId, grams} = dish.ingredients[+row.dataset.i];
-        const f = findFood(foodId);
-        row.querySelector(".kcal").textContent = f
-            ? `${fmt((f.nutrition.kcal * grams) / 100)} ${S.kcalUnit}`
+    ingredientsList.querySelectorAll(".ingredient").forEach((q) => {
+        const {foodId, grams} = dish.ingredients[+q.dataset.i];
+        const g = grams / 100;
+        const food = findFood(foodId);
+        q.querySelector(".calories").textContent = food
+            ? `${fmt(food.nutrition.calories * g)} ${S.kcal}`
             : "";
     });
 };
@@ -3171,15 +3040,16 @@ ingredientsList.addEventListener("input", (e) => {
     const input = e.target.closest(".grams-input");
     if (!input) return;
     input.value = normalizeNumber(input.value, MAX_GRAMS, 0);
-    dish.ingredients[+input.closest(".ingredient").dataset.i].grams =
-        parseNumber(input.value) || 0;
+    const i = +input.closest(".ingredient").dataset.i;
+    dish.ingredients[i].grams = parseNumber(input.value) || 0;
     updateDish();
 });
 
 ingredientsList.onclick = (e) => {
     const button = e.target.closest('[data-act="remove"]');
     if (!button) return;
-    dish.ingredients.splice(+button.closest(".ingredient").dataset.i, 1);
+    const i = +button.closest(".ingredient").dataset.i;
+    dish.ingredients.splice(i, 1);
     renderIngredients();
     updateDish();
 };
@@ -3189,15 +3059,9 @@ addIngredient.onclick = () => openSearch("ingredient");
 /* --- Tags and photo --- */
 
 const renderDishTags = () => {
-    dishTags.innerHTML = dish.autoTags
-        .map(
-            (tag) =>
-                `<button class="tap ${dish.tags.has(tag) ? "selected" : ""}">${clean(tag)}</button>`,
-        )
+    dishTags.innerHTML = tags
+        .map(tag => `<button class="tap ${dish.tags.has(tag) ? "selected" : ""}">${tag}</button>`)
         .join("");
-    [...dishTags.children].forEach(
-        (el, i) => (el.dataset.tag = dish.autoTags[i]),
-    );
 };
 
 bindTagChips(dishTags, () => dish.tags);
@@ -3237,8 +3101,7 @@ dishSave.onclick = () => {
         aliases: [],
         nutrition: r.nutrition,
         micro: r.micro,
-        ingredients:
-            dish.kind === "recipe" ? dish.ingredients.filter((i) => i.grams > 0) : [],
+        ingredients: dish.kind === "recipe" ? dish.ingredients.filter((i) => i.grams > 0) : [],
         yieldGrams: dish.kind === "recipe" ? r.yieldGrams : null,
         servingGrams: Math.round(r.servingGrams),
         pieceGrams: null,
@@ -3249,13 +3112,14 @@ dishSave.onclick = () => {
         archived: false,
     };
 
-    const i = foods.findIndex((f) => f.id === food.id);
+    const i = foods.findIndex(({id}) => id === food.id);
     if (i >= 0) foods[i] = food;
     else foods.push(food);
     saveFoods();
 
-    if (dish.originalPhotoId != null && dish.originalPhotoId !== food.photoId)
+    if (dish.originalPhotoId != null && dish.originalPhotoId !== food.photoId) {
         deletePhoto(dish.originalPhotoId);
+    }
     closeDishPage(food);
 };
 
@@ -3266,7 +3130,7 @@ dishCancel.onclick = () => {
 
 dishArchive.onclick = () =>
     showModal(S.deleteFoodQuestion, () => {
-        const i = foods.findIndex((f) => f.id === dish.editing.id);
+        const i = foods.findIndex(({id}) => id === dish.editing.id);
         foods[i] = {...foods[i], archived: true};
         saveFoods();
         favorites = favorites.filter((id) => id !== foods[i].id);
@@ -3283,33 +3147,16 @@ const birthdate = {digits: "", cursor: 0};
 
 /* --- Daily log rings --- */
 
-// const logRingHtml = ({kind, value, delta, goal, label, color}) => {
-//     const ratio = goal ? Math.abs(delta) / goal : 0;
-//     const length = RING_LENGTH * Math.min(ratio, 1);
-//     const offset = delta < 0 ? -length : 0;
-//     return `<button class="ring" data-kind="${kind}" aria-label="${label}">
-//         <svg viewBox="0 0 64 64" aria-hidden="true">
-//             <circle class="track" cx="32" cy="32" r="28"></circle>
-//             <circle class="fill" cx="32" cy="32" r="28"
-//                 style="stroke:var(${color});stroke-dasharray:${length} ${RING_LENGTH};stroke-dashoffset:${offset}"
-//                 transform="rotate(-90 32 32)"/>
-//         </svg>
-//         <div class="ring-value mono">${String(value).replace('.', ',')}</div>
-//         <div class="small help center">${label}</div>
-//     </button>`;
-// };
+const ringHtml = ({kind, value, delta, target, label, color}) => {
+    let ring;
+    let tick = '';
 
-const logRingHtml = ({kind, value, delta, goal, label, color}) => {
-    console.assert(goal > 0);
-    let ring = '';
-
-    if (Math.abs(delta) > goal) {
+    if (Math.abs(delta) > target) {
         const d = delta > 0 ? "M 29 0 L 32 4 L 29 9" : "M 35 0 L 32 4 L 35 9";
-        ring = `<circle class="fill" cx="32" cy="32" r="28" stroke="var(${color})" />;
-            <path d="${d}" stroke="var(--bg)" stroke-width="2" 
-            transform="rotate(${360 * delta / goal} 32 32)"/>`;
+        ring = `<circle class="fill" cx="32" cy="32" r="28" stroke="var(${color})" />`;
+        tick = `<path d="${d}" stroke="var(--bg)" stroke-width="2" transform="rotate(${360 * delta / target} 32 32)"/>`;
     } else {
-        const ratio = Math.abs(delta / goal);
+        const ratio = Math.abs(delta / target);
         const length = RING_LENGTH * ratio;
         const angle = 90 + (delta < 0) * 360 * ratio;
         ring = `<circle class="fill" cx="32" cy="32" r="28"
@@ -3321,55 +3168,54 @@ const logRingHtml = ({kind, value, delta, goal, label, color}) => {
         <svg viewBox="0 0 64 64" aria-hidden="true">
             <circle class="track" cx="32" cy="32" r="28"></circle>
             ${ring}
+            ${tick}
         </svg>
         <div class="ring-value mono">${String(value).replace('.', ',')}</div>
         <div class="small help center">${label}</div>
     </button>`;
 };
 
-// The last weight measured before today
-const prevWeightToday = () => prevWeight(getDateKey(new Date()));
-
 const renderLogRings = () => {
-    const d = getDateKey(date);
+    const key = getDateKey(date);
     const t = person.targets;
-    const weight = dayWeight(d);
-    const delta = weight - prevWeightToday();
-    const steps = daySteps(d);
-    const sleep = daySleep(d);
-    const water = dayWater(d);
+    const weight = getValue('weight', key);
+    const prevWeight = getPrevValue('weight', key);
+    const delta = prevWeight ? weight - prevWeight : 0;
+    const steps = getValue('steps', key);
+    const sleep = getValue('sleep', key);
+    const water = getValue('water', key);
 
     logRings.innerHTML = [
         {
             kind: "weight",
-            goal: 1,
+            target: 1,
             delta: delta,
             value: weight,
             label: S.weight,
             unit: S.kg,
-            color: "--c4",
+            color: "--red",
         },
         {
             kind: "steps",
-            goal: t.steps,
+            target: t.steps,
             delta: steps,
             value: steps,
             label: S.steps,
             unit: S.logUnits.steps,
-            color: "--c1",
+            color: "--yellow",
         },
         {
             kind: "sleep",
-            goal: t.sleep,
+            target: t.sleep,
             delta: sleep,
             value: sleep,
             label: S.sleep,
             unit: S.h,
-            color: "--c3",
+            color: "--green",
         },
         {
             kind: "water",
-            goal: t.water,
+            target: t.water,
             delta: water,
             value: round(water / 1000, 1),
             label: S.water,
@@ -3377,24 +3223,59 @@ const renderLogRings = () => {
             color: "--blue",
         },
     ]
-        .map(logRingHtml)
+        .map(ringHtml)
         .join("");
 };
 
 const renderDayRings = () => {
     const d = getDateKey(date);
-    const s = getSumMeals(d);
+    const s = sumMeals(d);
     if (!s) {
         dayRings.innerHTML = "";
         return;
     }
     const g = person.goals;
 
-    dayRings.innerHTML =
-        ringHtml(s.kcal, g.kcal, "--c3", S.kcal, S.kcalUnit) +
-        ringHtml(s.protein, g.protein, "--c1", S.protein, S.g) +
-        ringHtml(s.fat, g.fat, "--c1", S.fat, S.g) +
-        ringHtml(s.carbs, g.carbs, "--c1", S.carbs, S.g);
+    dayRings.innerHTML = [
+        {
+            kind: "calories",
+            target: g.calories,
+            delta: s.calories,
+            value: s.calories,
+            label: S.calories,
+            unit: S.kcal,
+            color: "--red",
+        },
+        {
+            kind: "protein",
+            target: g.protein,
+            delta: s.protein,
+            value: s.protein,
+            label: S.protein,
+            unit: S.g,
+            color: "--yellow",
+        },
+        {
+            kind: "fat",
+            target: g.fat,
+            delta: s.fat,
+            value: s.fat,
+            label: S.fat,
+            unit: S.g,
+            color: "--yellow",
+        },
+        {
+            kind: "carbs",
+            target: g.carbs,
+            delta: s.carbs,
+            value: s.carbs,
+            label: S.carbs,
+            unit: S.g,
+            color: "--yellow",
+        },
+    ]
+        .map(ringHtml)
+        .join("");
 };
 
 logRings.onclick = (e) => {
@@ -3406,7 +3287,6 @@ const renderPerson = () => {
     fillPersonForm();
 };
 
-// Заполняет встроенную форму профиля значениями из person
 const fillPersonForm = () => {
     if (person.birthdate) {
         const s = String(person.birthdate);
@@ -3435,7 +3315,7 @@ const fillPersonForm = () => {
     GOAL_KEYS.forEach(k => goalInputs[k].value = fmt(person.goals[k], 0));
 };
 
-/* --- Сохранение на blur --- */
+/* --- Save on blur --- */
 
 const updateLogsWeight = () => {
     const key = getDateKey(Date.now());
@@ -3463,7 +3343,6 @@ const applyPersonForm = () => {
     renderPerson();
 };
 
-// Сохраняем все поля разом: простое и предсказуемое поведение
 [
     birthdateInput,
     heightInput,
@@ -3480,7 +3359,6 @@ onSegment(sexInput, "sex", (value) => {
 
 /* --- Activity slider --- */
 
-// Опорные уровни: к ближайшему из них привязывается название
 const ACTIVITY_LEVELS = [1.2, 1.375, 1.55, 1.725, 1.9];
 
 const renderActivityLevel = () => {
@@ -3514,7 +3392,7 @@ maskNumber(targetInputs.sleep, 24, 1);
 maskNumber(targetInputs.steps, 100000, 0);
 maskNumber(targetInputs.water, 20, 1);
 maskNumber(targetInputs.weight, 500, 1);
-maskNumber(goalInputs.kcal, 10000, 0);
+maskNumber(goalInputs.cal, 10000, 0);
 maskNumber(goalInputs.protein, 1000, 1);
 maskNumber(goalInputs.fat, 1000, 1);
 maskNumber(goalInputs.carbs, 1000, 1);
@@ -3729,7 +3607,7 @@ let currentDate = new Date();
 let nutrientMode = "sum";
 let lag = 0;
 let triggerX = "sleep";
-let triggerY = "kcal";
+let triggerY = "calories";
 
 const getRange = (d, p) => {
     d = startOfDay(d);
@@ -3796,12 +3674,13 @@ const renderRange = () => {
 const shiftRange = (direction) => {
     if (period === DAY) currentDate = addDays(currentDate, direction);
     else if (period === WEEK) currentDate = addDays(currentDate, direction * 7);
-    else
+    else {
         currentDate = new Date(
             currentDate.getFullYear(),
             currentDate.getMonth() + direction,
             1,
         );
+    }
     renderRange();
 };
 
@@ -3811,13 +3690,14 @@ const shiftRange = (direction) => {
 const pastDays = (start, end) => {
     const days = [];
     const limit = startOfDay(new Date());
-    for (let d = startOfDay(start); d < end && d <= limit; d = addDays(d, 1))
+    for (let d = startOfDay(start); d < end && d <= limit; d = addDays(d, 1)) {
         days.push(d);
+    }
     return days;
 };
 
 const DAY_SUM_KEYS = [
-    "kcal",
+    "cal",
     "protein",
     "fat",
     "carbs",
@@ -3835,13 +3715,13 @@ const daySummaryOf = (list) => {
         all.push(...m.items);
         (byType[m.type] ??= []).push(...m.items);
     }
-    const s = sumMeals(all);
+    const s = sumItems(all);
     return {
         ...Object.fromEntries(DAY_SUM_KEYS.map((k) => [k, s[k]])),
         health: s.healthScore,
         count: list.length,
         ...Object.fromEntries(
-            MEAL_TYPES.map((t) => [t, byType[t] ? sumMeals(byType[t]).kcal : 0]),
+            MEAL_TYPES.map((t) => [t, byType[t] ? sumItems(byType[t]).kcal : 0]),
         ),
     };
 };
@@ -3850,14 +3730,14 @@ const SUMMARY_KEYS = [...NUTRIENT_KEYS, "health", "count", ...MEAL_TYPES];
 
 const averageSummaries = (list) => {
     if (!list.length) return null;
-    const r = {};
+    const dst = {};
     SUMMARY_KEYS.forEach((k) => {
         const values = list.map((x) => x[k]).filter((v) => v != null);
-        r[k] = values.length
+        dst[k] = values.length
             ? values.reduce((a, v) => a + v, 0) / values.length
             : null;
     });
-    return r;
+    return dst;
 };
 
 // Day/Week/Month at day level: the average day that has entries
@@ -3884,7 +3764,7 @@ const aggregateWater = (b) => {
             .reduce((s, e) => s + e.ml, 0);
     }
     const values = pastDays(b.start, b.end)
-        .map((d) => dayWater(getDateKey(d)))
+        .map(d => getValue('water', getDateKey(d)))
         .filter((v) => v > 0);
     return values.length
         ? values.reduce((a, v) => a + v, 0) / values.length
@@ -3902,7 +3782,7 @@ const cumulative = (values, buckets) => {
 
 const inNorm = (key) => {
     if (!getMeals(key).length) return false;
-    const ratio = getSumMeals(key).kcal / person.goals.kcal;
+    const ratio = sumMeals(key).calories / person.goals.calories;
     return ratio >= 0.8 && ratio <= 1.1;
 };
 
@@ -3912,8 +3792,8 @@ const getStreaks = () => {
     const first = startOfDay(
         Math.min(...getMeals(Math.min(...keys)).map((m) => m.eaten)),
     );
-    let best = 0,
-        run = 0;
+    let best = 0;
+    let run = 0;
     for (let d = first; d <= today; d = addDays(d, 1)) {
         run = inNorm(getDateKey(d)) ? run + 1 : 0;
         best = Math.max(best, run);
@@ -3960,10 +3840,10 @@ const tickFormat = (ticks) => {
 };
 
 const frame = (id, height = CHART_HEIGHT) => {
-    const el = $(id);
-    const w = Math.max(260, el.clientWidth || 320);
+    const q = $(id);
+    const w = Math.max(260, q.clientWidth || 320);
     const plot = {x0: PAD.l, x1: w - PAD.r, y0: height - PAD.b, y1: PAD.t};
-    return {el, w, h: height, plot};
+    return {q, w, h: height, plot};
 };
 
 const gridHtml = (plot, {ticks}, y) => {
@@ -4034,7 +3914,7 @@ const renderLine = (
     const values = series.flatMap((s) => s.values).filter((v) => v != null);
     if (!values.length) return empty(id);
 
-    const {el, w, h, plot} = frame(id);
+    const {q, w, h, plot} = frame(id);
     const lo = min === "auto" ? Math.min(...values) : 0;
     const hiRaw = Math.max(...values, normal ?? 0);
     const scale =
@@ -4105,7 +3985,7 @@ const renderLine = (
         })),
     );
 
-    el.innerHTML =
+    q.innerHTML =
         svg(
             w,
             h,
@@ -4139,7 +4019,7 @@ const renderStacked = (
     );
     if (!totals.some((v) => v > 0)) return empty(id);
 
-    const {el, w, h, plot} = frame(id);
+    const {q, w, h, plot} = frame(id);
     const scale = scaleY(0, Math.max(...totals, normal ?? 0) * 1.08);
     const slot = (plot.x1 - plot.x0) / buckets.length;
     const bw = Math.min(24, slot * 0.6);
@@ -4181,7 +4061,7 @@ const renderStacked = (
         })),
     );
 
-    el.innerHTML =
+    q.innerHTML =
         svg(
             w,
             h,
@@ -4216,7 +4096,7 @@ const renderVBars = (
         .filter((v) => v != null && v !== 0);
     if (!values.length) return empty(id);
 
-    const {el, w, h, plot} = frame(id, height);
+    const {q, w, h, plot} = frame(id, height);
     const lo = Math.min(0, ...values);
     const hi = Math.max(0, ...values, normal ?? 0);
     const scale = scaleY(lo * 1.08, hi * 1.08 || 1);
@@ -4280,7 +4160,7 @@ const renderVBars = (
         })),
     );
 
-    el.innerHTML =
+    q.innerHTML =
         svg(
             w,
             h,
@@ -4297,10 +4177,10 @@ const renderVBars = (
 };
 
 const renderHList = (id, entries) => {
-    const el = $(id);
+    const q = $(id);
     if (!entries.length) return empty(id);
     const total = Math.max(...entries.map((e) => e.value));
-    el.innerHTML = `<div class="h-list" style="--total:${total}">${entries
+    q.innerHTML = `<div class="h-list" style="--total:${total}">${entries
         .map(
             ({label, value, text}) => `
         <div class="h-col">
@@ -4400,8 +4280,8 @@ const renderScatter = (
 
 const renderHeatmap = (id, matrix, max) => {
     if (!max) return empty(id);
-    const el = $(id);
-    const w = Math.max(260, el.clientWidth || 320);
+    const q = $(id);
+    const w = Math.max(260, q.clientWidth || 320);
     const left = 36;
     const cell = (w - left - 4) / 24;
     const ch = cell - 2; // square cell with a 2px gutter on both axes
@@ -4439,8 +4319,8 @@ const renderHeatmap = (id, matrix, max) => {
                 title: `${S.wds[d]} ${pad(hr)}:00`,
                 rows: [
                     {
-                        label: S.kcal,
-                        value: `${fmt(v)} ${S.kcalUnit}`,
+                        label: S.calories,
+                        value: `${fmt(v)} ${S.kcal}`,
                         color: "--accent",
                     },
                 ],
@@ -4448,7 +4328,7 @@ const renderHeatmap = (id, matrix, max) => {
         ),
     );
 
-    el.innerHTML = svg(w, h, cells + rows + cols);
+    q.innerHTML = svg(w, h, cells + rows + cols);
 };
 
 /* --- Tip --- */
@@ -4508,8 +4388,8 @@ window.addEventListener("scroll", hideTip, {passive: true});
 // ==========================================================================
 
 const setChartValue = (id, text) => {
-    const el = $(id).closest(".card").querySelector(".value");
-    if (el) el.textContent = text ? `— ${text}` : "";
+    const q = $(id).closest(".card").querySelector(".value");
+    if (q) q.textContent = text ? `— ${text}` : "";
 };
 
 const average = (values) => {
@@ -4517,12 +4397,12 @@ const average = (values) => {
     return list.length ? list.reduce((a, v) => a + v, 0) / list.length : null;
 };
 
-const MACRO_COLORS = {protein: "--c1", fat: "--c2", carbs: "--c3"};
+const MACRO_COLORS = {protein: "--yellow", fat: "--green", carbs: "--red"};
 const MEAL_COLORS = {
-    [SNACK]: "--c4",
-    [BREAKFAST]: "--c1",
-    [LUNCH]: "--c2",
-    [DINNER]: "--c3",
+    [SNACK]: "--yellow",
+    [BREAKFAST]: "--blue",
+    [LUNCH]: "--green",
+    [DINNER]: "--red",
 };
 const NUTRIENT_CHARTS = ["fiber", "sugar", "salt", "satFat"];
 
@@ -4543,13 +4423,13 @@ const renderStats = () => {
         period === DAY ? [{label: getDateText(start), start, end}] : buckets;
 
     /* 1. Calories */
-    const kcal =
-        period === DAY ? cumulative(field("kcal"), buckets) : field("kcal");
-    const kcalSeries = [{values: kcal, color: "--accent", label: S.fact}];
+    const calories =
+        period === DAY ? cumulative(field("calories"), buckets) : field("calories");
+    const dst = [{values: calories, color: "--accent", label: S.fact}];
     if (period === WEEK) {
-        kcalSeries.push({
+        dst.push({
             label: S.avg7,
-            color: "--c2",
+            color: "--green",
             thin: true,
             values: buckets.map((b) =>
                 b.start > new Date()
@@ -4557,21 +4437,21 @@ const renderStats = () => {
                     : average(
                         pastDays(addDays(b.start, -6), b.end).map((d) =>
                             getMeals(getDateKey(d)).length
-                                ? getSumMeals(getDateKey(d)).kcal
+                                ? sumMeals(getDateKey(d)).calories
                                 : null,
                         ),
                     ),
             ),
         });
     }
-    renderLine("kcal-chart", buckets, kcalSeries, {
-        normal: g.kcal,
-        unit: S.kcalUnit,
+    renderLine("calories-chart", buckets, dst, {
+        normal: g.calories,
+        unit: S.kcal,
     });
     setChartValue(
-        "kcal-chart",
+        "calories-chart",
         logged.length
-            ? `${fmt(average(logged.map((d) => getSumMeals(getDateKey(d)).kcal)))} ${S.kcalUnit}/${S.dayShort}`
+            ? `${fmt(average(logged.map((d) => sumMeals(getDateKey(d)).calories)))} ${S.cal}/${S.dayShort}`
             : "",
     );
 
@@ -4590,9 +4470,9 @@ const renderStats = () => {
         dayBuckets,
         [
             {
-                label: S.kcal,
-                values: daySums.map((s) => (s ? s.kcal - g.kcal : null)),
-                color: (v) => (v > 0 ? "--c4" : "--c2"),
+                label: S.calories,
+                values: daySums.map((s) => (s ? s.calories - g.calories : null)),
+                color: (v) => (v > 0 ? "--blue" : "--green"),
             },
             {
                 label: S.macroImbalance,
@@ -4604,15 +4484,15 @@ const renderStats = () => {
                         )
                         : null,
                 ),
-                color: "--c1",
+                color: "--yellow",
             },
         ],
         {
-            unit: S.kcalUnit,
+            unit: S.kcal,
             legend: [
-                {label: S.kcalOver, color: "--c4"},
-                {label: S.kcalUnder, color: "--c2"},
-                {label: S.macroImbalance, color: "--c1"},
+                {label: S.kcalOver, color: "--blue"},
+                {label: S.kcalUnder, color: "--green"},
+                {label: S.macroImbalance, color: "--yellow"},
             ],
         },
     );
@@ -4621,7 +4501,7 @@ const renderStats = () => {
     renderStacked("meal-type-chart", buckets, MEAL_TYPES, sums, {
         colors: MEAL_COLORS,
         labels: S.mealTypes,
-        unit: S.kcalUnit,
+        unit: S.kcal,
     });
 
     /* 5. Water */
@@ -4642,30 +4522,30 @@ const renderStats = () => {
     /* 6. Calories by tags */
     const tagKcal = new Map();
     rangeMeals.forEach((m) => {
-        const k = sumMeals(m.items).kcal;
+        const k = sumItems(m.items).kcal;
         m.tags.forEach((t) => tagKcal.set(t, (tagKcal.get(t) || 0) + k));
     });
     renderHList(
-        "tags-kcal-chart",
+        "tags-cal-chart",
         [...tagKcal.entries()]
             .sort((a, b) => b[1] - a[1])
             .slice(0, 10)
             .map(([label, value]) => ({
                 label,
                 value,
-                text: `${fmt(value)} ${S.kcalUnit}`,
+                text: `${fmt(value)} ${S.kcal}`,
             })),
     );
 
     /* 7. Weekdays */
     const weekdays = S.wds.map((label, i) => {
         const list = logged
-            .filter((d) => weekdayIndex(d) === i)
+            .filter((d) => getWeekday(d) === i)
             .map((d) => daySummaryOf(getMeals(getDateKey(d))));
         return {
             label,
             count: average(list.map((s) => s.count)),
-            kcal: average(list.map((s) => s.kcal)),
+            calories: average(list.map((s) => s.calories)),
         };
     });
     renderVBars(
@@ -4674,26 +4554,26 @@ const renderStats = () => {
         [
             {
                 values: weekdays.map((d) => d.count),
-                color: "--c2",
+                color: "--green",
                 label: S.mealsCount,
             },
         ],
         {decimals: 1, height: 140},
     );
     renderVBars(
-        "weekday-kcal",
+        "weekday-calories",
         weekdays,
-        [{values: weekdays.map((d) => d.kcal), color: "--accent", label: S.kcal}],
-        {unit: S.kcalUnit, height: 140},
+        [{values: weekdays.map((d) => d.calories), color: "--accent", label: S.calories}],
+        {unit: S.kcal, height: 140},
     );
 
     /* 8. Health score */
     const allItems = rangeMeals.flatMap((m) => m.items);
-    const healthAvg = sumMeals(allItems).healthScore;
+    const healthAvg = sumItems(allItems).healthScore;
     renderLine(
         "health-chart",
         buckets,
-        [{values: field("health"), color: "--health-high", label: S.healthScore}],
+        [{values: field("health"), color: "--green", label: S.healthScore}],
         {normal: healthAvg, normalLabel: S.average, unit: ""},
     );
     setChartValue("health-chart", healthAvg == null ? "" : fmt(healthAvg));
@@ -4720,7 +4600,7 @@ const renderStats = () => {
         renderVBars(
             `nutrient-${k}`,
             buckets,
-            [{values, color: "--c2", label: S[k]}],
+            [{values, color: "--green", label: S[k]}],
             {
                 normal: showNormal ? (pct ? 100 : g[k]) : null,
                 unit: pct ? "%" : S.g,
@@ -4738,9 +4618,9 @@ const renderStats = () => {
             );
             return entries.length
                 ? average(entries.map((e) => e.weight))
-                : dayWeight(getDateKey(b.start));
+                : getValue('weight', getDateKey(b.start));
         }
-        return average(pastDays(b.start, b.end).map((d) => dayWeight(getDateKey(d))));
+        return average(pastDays(b.start, b.end).map((d) => getValue('weight', getDateKey(d))));
     });
     const weightPoints = weights
         .map((y, x) => ({x, y}))
@@ -4778,16 +4658,16 @@ const renderStats = () => {
 
     /* 12. Weight and calories */
     renderScatter(
-        "weight-kcal-scatter",
+        "weight-calories-scatter",
         days
             .map((d) => {
-                const w = dayWeight(getDateKey(d));
+                const w = getValue('weight', getDateKey(d));
                 const k = getDateKey(addDays(d, -lag));
                 if (w == null || !getMeals(k).length) return null;
-                return {x: getSumMeals(k).kcal, y: w, label: getDateText(d)};
+                return {x: sumMeals(k).calories, y: w, label: getDateText(d)};
             })
             .filter(Boolean),
-        {xLabel: S.kcal, yLabel: S.weight, xUnit: S.kcalUnit, yUnit: S.kg},
+        {xLabel: S.calories, yLabel: S.weight, xUnit: S.kcal, yUnit: S.kg},
     );
 
     /* 13. Triggers */
@@ -4796,21 +4676,21 @@ const renderStats = () => {
         days
             .map((d) => {
                 const key = getDateKey(d);
-                const xv = triggerX === "sleep" ? daySleep(key) : daySteps(key);
+                const xv = triggerX === "sleep" ? getValue('sleep', key) : getValue('steps', key);
                 if (xv == null || !getMeals(key).length) return null;
-                const s = getSumMeals(key);
+                const s = sumMeals(key);
                 return {
                     x: xv,
-                    y: triggerY === "kcal" ? s.kcal : s.sugar,
+                    y: triggerY === "calories" ? s.calories : s.sugar,
                     label: getDateText(d),
                 };
             })
             .filter(Boolean),
         {
             xLabel: triggerX === "sleep" ? S.sleepHours : S.steps,
-            yLabel: triggerY === "kcal" ? S.kcal : S.sugar,
+            yLabel: triggerY === "calories" ? S.calories : S.sugar,
             xUnit: triggerX === "sleep" ? S.h : "",
-            yUnit: triggerY === "kcal" ? S.kcalUnit : S.g,
+            yUnit: triggerY === "calories" ? S.kcal : S.g,
         },
     );
 
@@ -4818,7 +4698,7 @@ const renderStats = () => {
     const matrix = Array.from({length: 7}, () => Array(24).fill(0));
     rangeMeals.forEach((m) => {
         const d = new Date(m.eaten);
-        matrix[weekdayIndex(d)][d.getHours()] += sumMeals(m.items).kcal;
+        matrix[getWeekday(d)][d.getHours()] += sumItems(m.items).calories;
     });
     renderHeatmap("hour-heatmap", matrix, Math.max(...matrix.flat()));
 
@@ -4826,7 +4706,7 @@ const renderStats = () => {
     const micro = Object.fromEntries(
         MICRO_KEYS.map((k) => {
             const values = logged
-                .map((d) => getSumMeals(getDateKey(d)).micro[k])
+                .map((d) => sumMeals(getDateKey(d)).micro[k])
                 .filter((v) => v != null);
             return [
                 k,

@@ -279,7 +279,7 @@ const sumItems = (items) => {
     return dst;
 };
 
-const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const clamp = (x, min = 0, max = 1) => Math.min(max, Math.max(min, x));
 
 const computeHealth = (nutrition, micro = {}) => {
     let {calories, protein, fat, fiber, freeSugar, salt, satFat, transFat} = nutrition;
@@ -292,14 +292,14 @@ const computeHealth = (nutrition, micro = {}) => {
 
     const s =
         90 -
-        10 * clamp01(calories / 800) -
-        30 * clamp01(freeSugar / 10) -
-        15 * clamp01(satFat / 10) -
-        20 * clamp01(salt / 2) +
-        8 * clamp01(fiber / 8) +
-        4 * clamp01(protein / 25) +
-        10 * clamp01(unsatFat / 70) +
-        5 * clamp01(microCoverage / 3);
+        10 * clamp(calories / 800) -
+        30 * clamp(freeSugar / 10) -
+        15 * clamp(satFat / 10) -
+        20 * clamp(salt / 2) +
+        8 * clamp(fiber / 8) +
+        4 * clamp(protein / 25) +
+        10 * clamp(unsatFat / 70) +
+        5 * clamp(microCoverage / 3);
 
     return Math.round(Math.max(0, Math.min(100, s)));
 };
@@ -354,10 +354,16 @@ const getSleep = age =>
                             age < 65 ? 8 :
                                 7.5;
 
-const getSteps = (age, sex, weight, height) => {
-    const bmi = weight / (height * height) / 10000;
+const getMistPredictedSteps = (age, sex, weight, height) => {
+    const bmi = 10000 * weight / (height * height);
     return Math.round(675.113 + (66.165 * sex) - (5.353 * age) - (6.593 * bmi));
 }
+
+const getSteps = (age, sex, weight, height) => {
+    const mist = getMistPredictedSteps(age, sex, weight, height);
+    const goal = 8000 + 10 * (mist - 360);
+    return clamp(goal, 5000, 12000);
+};
 
 const getTargets = ({age, sex, weight, height}) => ({
     sleep: getSleep(age),
@@ -2042,11 +2048,11 @@ const recentPicks = () =>
 const frequentPicks = () => {
     updateFoodsCounter();
     return [...foodsCounter.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([id]) => findFood(id))
-    .filter((f) => f && !f.archived)
-    .slice(0, 10)
-    .map((food) => ({food, grams: food.servingGrams || DEFAULT_SERVING}));
+        .sort((a, b) => b[1] - a[1])
+        .map(([id]) => findFood(id))
+        .filter((f) => f && !f.archived)
+        .slice(0, 10)
+        .map((food) => ({food, grams: food.servingGrams || DEFAULT_SERVING}));
 };
 
 const renderQuickPicks = () => {

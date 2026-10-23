@@ -1059,7 +1059,7 @@ const loadLogs = () => {
     logs.weight = read("weight", []);
     logs.water = read("water", []);
     logs.sleep = read("sleep", []);
-    logs.activity = read("activity", []);
+    logs.steps = read("steps", []);
 };
 
 const loadTags = () => {
@@ -1721,7 +1721,7 @@ const mealHtml = (m) => {
             <span class="time mono">${getTimeText(m.eaten)}</span>
             <span class="type small help">${S.mealTypes[m.type]}</span>
             ${photo}
-            <span class="cal mono right">${fmt(s.cal)} ${S.cal}</span>
+            <span class="cal mono right">${fmt(s.calories)} ${S.kcal}</span>
         </div>
         <div class="items small help">${names}</div>
         ${healthBar(s.healthScore)}
@@ -1874,6 +1874,7 @@ const newMeal = () => {
     eaten.setHours(now.getHours(), now.getMinutes(), 0, 0);
     return {
         eaten: eaten.getTime(),
+        key: getDateKey(eaten),
         type: autoType(eaten),
         items: [],
         tags: [],
@@ -2033,12 +2034,15 @@ const recentPicks = () =>
         .filter((p) => p.food && !p.food.archived)
         .slice(0, 10);
 
-const frequentPicks = () => [...foodsCounter.entries()]
+const frequentPicks = () => {
+    updateFoodsCounter();
+    return [...foodsCounter.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([id]) => findFood(id))
     .filter((f) => f && !f.archived)
     .slice(0, 10)
     .map((food) => ({food, grams: food.servingGrams || DEFAULT_SERVING}));
+};
 
 const renderQuickPicks = () => {
     const lists = {recent: recentPicks(), frequent: frequentPicks()};
@@ -2379,7 +2383,7 @@ searchResults.onclick = (e) => {
     const food = findFood(+q.dataset.id);
     const act = e.target.closest("button")?.dataset.act;
 
-    if (act === "favorite") {
+    if (act === "fav") {
         toggleFavorite(food.id);
         return renderSearchResults();
     }
@@ -2943,7 +2947,7 @@ const readDish = () => {
         const recipe = computeFromIngredients(dish.ingredients, yieldGrams);
         const grams = yieldGrams || recipe.grams;
         return {
-            valid: !!name && dish.ingredients.length > 0 && r.grams > 0,
+            valid: !!name && dish.ingredients.length > 0 && recipe.grams > 0,
             nutrition: recipe.nutrition,
             micro: recipe.micro,
             grams: recipe.grams,
@@ -3392,7 +3396,7 @@ maskNumber(targetInputs.sleep, 24, 1);
 maskNumber(targetInputs.steps, 100000, 0);
 maskNumber(targetInputs.water, 20, 1);
 maskNumber(targetInputs.weight, 500, 1);
-maskNumber(goalInputs.cal, 10000, 0);
+maskNumber(goalInputs.calories, 10000, 0);
 maskNumber(goalInputs.protein, 1000, 1);
 maskNumber(goalInputs.fat, 1000, 1);
 maskNumber(goalInputs.carbs, 1000, 1);
@@ -3697,7 +3701,7 @@ const pastDays = (start, end) => {
 };
 
 const DAY_SUM_KEYS = [
-    "cal",
+    "calories",
     "protein",
     "fat",
     "carbs",
@@ -3721,7 +3725,7 @@ const daySummaryOf = (list) => {
         health: s.healthScore,
         count: list.length,
         ...Object.fromEntries(
-            MEAL_TYPES.map((t) => [t, byType[t] ? sumItems(byType[t]).kcal : 0]),
+            MEAL_TYPES.map((t) => [t, byType[t] ? sumItems(byType[t]).calories : 0]),
         ),
     };
 };
@@ -3759,9 +3763,7 @@ const aggregate = (b) => {
 const aggregateWater = (b) => {
     if (b.start > new Date()) return null;
     if (period === DAY) {
-        return logs.water
-            .filter((e) => e.date >= b.start && e.date < b.end)
-            .reduce((s, e) => s + e.ml, 0);
+        return getValue('water', getDateKey(getDateKey(b.start)));
     }
     const values = pastDays(b.start, b.end)
         .map(d => getValue('water', getDateKey(d)))
@@ -4451,7 +4453,7 @@ const renderStats = () => {
     setChartValue(
         "calories-chart",
         logged.length
-            ? `${fmt(average(logged.map((d) => sumMeals(getDateKey(d)).calories)))} ${S.cal}/${S.dayShort}`
+            ? `${fmt(average(logged.map((d) => sumMeals(getDateKey(d)).calories)))} ${S.kcal}/${S.dayShort}`
             : "",
     );
 
@@ -4522,7 +4524,7 @@ const renderStats = () => {
     /* 6. Calories by tags */
     const tagKcal = new Map();
     rangeMeals.forEach((m) => {
-        const k = sumItems(m.items).kcal;
+        const k = sumItems(m.items).calories;
         m.tags.forEach((t) => tagKcal.set(t, (tagKcal.get(t) || 0) + k));
     });
     renderHList(

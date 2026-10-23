@@ -3583,12 +3583,12 @@ const getBirthdate = () => {
     const y = +birthdate.digits.slice(4, 8);
     const dst = new Date(y, m - 1, d);
 
-    return (
-        dst.getFullYear() === y &&
-        dst.getMonth() === m - 1 &&
-        dst.getDate() === d &&
-        dst <= new Date()
-    ) ? dst : null;
+    if (dst.getFullYear() !== y ||
+        dst.getMonth() !== m - 1 ||
+        dst.getDate() !== d ||
+        dst > new Date()) return null;
+
+    return y * 10000 + m * 100 + d;
 };
 
 /* --- Export, Import, Reset --- */

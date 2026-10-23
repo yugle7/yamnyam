@@ -238,6 +238,8 @@ const emptyMicro = () => Object.fromEntries(MICRO_KEYS.map(k => [k, 0]));
 // ==========================================================================
 
 const sumItems = (items) => {
+    if (!items.length) return null;
+
     const dst = {
         grams: 0,
         ...emptyNutrition(),
@@ -1534,7 +1536,10 @@ const sumMeals = (key) => sumItems(getMeals(key).flatMap((m) => m.items));
 const getValue = (kind, key) => {
     const res = logs[kind].filter(q => q.key === key);
     if (res.length) return res.at(-1).value;
-    return kind === 'weight' ? getPrevValue('weight', key) || getNextValue('weight', key) || person.weight : 0;
+    if (kind === 'weight') {
+        return getPrevValue('weight', key) || getNextValue('weight', key) || person.weight;
+    }
+    return 0;
 }
 
 const getPrevValue = (kind, key) => {
@@ -2123,7 +2128,7 @@ const renderItems = () => {
     mealItems.innerHTML =
         meal.items.map(itemHtml).join("") +
         (meal.items.length
-            ? `<div class="total small mono">${S.total} ${fmt(s.calories)} ${S.kcal} · ${macrosText(s, 1)}</div>`
+            ? `<div class="total small mono">${fmt(s.calories)} ${S.kcal} · ${macrosText(s, 1)}</div>`
             : "");
     renderCta();
 };
@@ -3232,8 +3237,7 @@ const renderLogRings = () => {
 };
 
 const renderDayRings = () => {
-    const d = getDateKey(date);
-    const s = sumMeals(d);
+    const s = sumMeals(getDateKey(date));
     if (!s) {
         dayRings.innerHTML = "";
         return;

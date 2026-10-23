@@ -150,8 +150,8 @@
 
             <div class="grid-4">
                 <label class="field"><span class="label" data-i18n="cal"></span><input id="dish-calories"
-                                                                                        class="input mono"
-                                                                                        inputmode="decimal"></label>
+                                                                                       class="input mono"
+                                                                                       inputmode="decimal"></label>
                 <label class="field"><span class="label" data-i18n="protein"></span><input id="dish-protein"
                                                                                            class="input mono"
                                                                                            inputmode="decimal"></label>
@@ -449,26 +449,40 @@
         <button type="button" id="calc-goals" class="tap wide" data-i18n="calculateGoals"></button>
 
         <div class="grid-4">
-            <label class="field"><span class="label" data-i18n="cal"></span><input id="goal-calories" class="input mono"
-                                                                                    inputmode="numeric"></label>
-            <label class="field"><span class="label" data-i18n="protein"></span><input id="goal-protein"
-                                                                                       class="input mono"
-                                                                                       inputmode="decimal"></label>
-            <label class="field"><span class="label" data-i18n="fat"></span><input id="goal-fat" class="input mono"
-                                                                                   inputmode="decimal"></label>
-            <label class="field"><span class="label" data-i18n="carbs"></span><input id="goal-carbs" class="input mono"
-                                                                                     inputmode="decimal"></label>
+            <label class="field">
+                <span class="label" data-i18n="calories"></span>
+                <input id="goal-calories" class="input mono" inputmode="numeric">
+            </label>
+            <label class="field">
+                <span class="label" data-i18n="protein"></span>
+                <input id="goal-protein" class="input mono" inputmode="decimal">
+            </label>
+            <label class="field">
+                <span class="label" data-i18n="fat"></span>
+                <input id="goal-fat" class="input mono" inputmode="decimal">
+            </label>
+            <label class="field">
+                <span class="label" data-i18n="carbs"></span>
+                <input id="goal-carbs" class="input mono" inputmode="decimal">
+            </label>
         </div>
         <div class="grid-4">
-            <label class="field"><span class="label" data-i18n="fiber"></span><input id="goal-fiber" class="input mono"
-                                                                                     inputmode="decimal"></label>
-            <label class="field"><span class="label" data-i18n="sugar"></span><input id="goal-sugar" class="input mono"
-                                                                                     inputmode="decimal"></label>
-            <label class="field"><span class="label" data-i18n="salt"></span><input id="goal-salt" class="input mono"
-                                                                                    inputmode="decimal"></label>
-            <label class="field"><span class="label" data-i18n="satFat"></span><input id="goal-satFat"
-                                                                                      class="input mono"
-                                                                                      inputmode="decimal"></label>
+            <label class="field">
+                <span class="label" data-i18n="fiber"></span>
+                <input id="goal-fiber" class="input mono" inputmode="decimal">
+            </label>
+            <label class="field">
+                <span class="label" data-i18n="sugar"></span>
+                <input id="goal-sugar" class="input mono" inputmode="decimal">
+            </label>
+            <label class="field">
+                <span class="label" data-i18n="salt"></span>
+                <input id="goal-salt" class="input mono" inputmode="decimal">
+            </label>
+            <label class="field">
+                <span class="label" data-i18n="satFat"></span>
+                <input id="goal-satFat" class="input mono" inputmode="decimal">
+            </label>
         </div>
     </form>
 </section>
@@ -631,8 +645,16 @@
         <span id="log-unit"></span>
     </div>
     <footer>
-        <button id="log-minus" class="left" data-i18n-aria-label="minus"><svg><use href="sprite.svg#minus"></use></svg></button>
-        <button id="log-plus" class="left" data-i18n-aria-label="plus"><svg><use href="sprite.svg#plus"></use></svg></button>
+        <button id="log-minus" class="left" data-i18n-aria-label="minus">
+            <svg>
+                <use href="sprite.svg#minus"></use>
+            </svg>
+        </button>
+        <button id="log-plus" class="left" data-i18n-aria-label="plus">
+            <svg>
+                <use href="sprite.svg#plus"></use>
+            </svg>
+        </button>
         <button id="close-log" class="right" data-i18n="cancel"></button>
         <button id="apply-log" class="accent">OK</button>
     </footer>

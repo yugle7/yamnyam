@@ -120,7 +120,7 @@ window.TRANSLATIONS = {
         deleteFoodQuestion: "Удалить продукт? Старые записи не изменятся.",
 
         /* --- Nutrients --- */
-        cal: "Калории",
+        calories: "Калории",
         kcal: "ккал",
         protein: "Белки",
         fat: "Жиры",

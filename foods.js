@@ -5,14 +5,14 @@
 // Row: [id, kind, name, en, aliases, N, M, servingGrams, pieceGrams]
 //   kind: p — product, d — dish
 //   aliases: synonyms separated by "|" (ru and en)
-//   N: [kcal, protein, fat, carbs, fiber, sugar, salt, satFat], g
+//   N: [calories, protein, fat, carbs, fiber, sugar, salt, satFat], g
 //   M: [vitaminA µg, vitaminC mg, vitaminD µg, vitaminE mg, vitaminK µg, vitaminB6 mg, vitaminB12 µg,
 //       folate µg, calcium mg, iron mg, potassium mg, magnesium mg, zinc mg]
 //   pieceGrams: weight of 1 piece, 0 — not counted in pieces
 
 (() => {
   const NUTRIENTS = [
-    "kcal",
+    "calories",
     "protein",
     "fat",
     "carbs",

@@ -897,7 +897,6 @@ const heightInput = $("height");
 const weightInput = $("weight");
 const activityInput = $("activity");
 const activityLevel = $("activity-level");
-const calcGoalsButton = $("calc-goals");
 
 const targetInputs = {
     sleep: $("target-sleep"),

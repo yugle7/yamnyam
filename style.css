@@ -34,7 +34,7 @@
     :root {
         --bg: #2a2a2a;
         --text: #c8c8c8;
-        --head: #333333;
+        --head: #303030;
         --icon: #bcb6a6;
         --line: #444444;
         --fade: #2d2d2d;
@@ -222,7 +222,7 @@ body:not(.photos) .needs-photos {
 }
 
 .accent {
-    color: var(--accent);
+    color: var(--accent) !important;
 }
 
 .help {
@@ -1691,6 +1691,10 @@ h2.group {
     width: 10px;
     height: 10px;
     background: var(--color);
+}
+
+.break {
+    border-bottom: 1px solid var(--line);
 }
 
 .legend .key.line {

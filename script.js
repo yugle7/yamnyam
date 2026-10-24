@@ -74,7 +74,8 @@ const DEFAULT_PERSON = {
     birthdate: 0,
     height: 175,
     weight: 70,
-    activity: 1.375
+    activity: 1.375,
+    manual: []
 };
 
 const LOGS = {
@@ -374,8 +375,15 @@ const getTargets = ({age, sex, weight, height}) => ({
 
 const updatePerson = () => {
     person.age = getAge(person.birthdate);
-    person.goals = getGoals(person);
-    person.targets = getTargets(person);
+    const goals = getGoals(person);
+    const targets = getTargets(person);
+
+    person.manual.forEach(key => {
+        if (key in goals) goals[key] = person.goals[key];
+        else targets[key] = person.targets[key];
+    });
+    person.targets = targets;
+    person.goals = goals;
 };
 
 const getMorningWeight = (weights) => {
@@ -929,6 +937,7 @@ const goalInput = {
     satFat: $("goal-satFat"),
 };
 const goalInputs = Object.values(goalInput);
+const calculatedInputs = {...targetInput, ...goalInput};
 
 const exportButton = $("export");
 const importButton = $("import");
@@ -1034,6 +1043,7 @@ const personToStore = () => {
         activity,
         targets,
         goals,
+        manual,
     } = person;
     return {
         sex,
@@ -1043,6 +1053,7 @@ const personToStore = () => {
         activity,
         targets,
         goals,
+        manual,
     };
 };
 
@@ -1430,7 +1441,7 @@ const renderPage = (name, withLink = true) => {
         renderRange();
         renderStats();
     } else if (name === "person") {
-       renderPerson();
+        renderPerson();
     }
 };
 
@@ -2317,7 +2328,7 @@ const resultHtml = (food) => {
         : "";
     return `<div class="result" data-id="${food.id}" role="button" tabindex="0">
         <div class="col grow">
-            <span>${clean(f[lang])}</span>
+            <span>${clean(food[lang])}</span>
             <span class="small help mono">${fmt(food.nutrition.calories)} ${S.kcalPer100}</span>
             ${healthBar(food.healthScore)}
         </div>
@@ -3029,9 +3040,9 @@ toggleMicro.onclick = () => {
 const renderIngredients = () => {
     ingredientsList.innerHTML = dish.ingredients
         .map(({foodId, grams}, i) => {
-            const f = findFood(foodId);
+            const food = findFood(foodId);
             return `<div class="ingredient row gap-10" data-i="${i}">
-            <span class="grow">${clean(f ? f[lang] : "?")}</span>
+            <span class="grow">${clean(food ? food[lang] : "?")}</span>
             <input class="input grams-input mono" inputmode="numeric" value="${grams}" aria-label="${S.g}">
             <span class="help small">${S.g}</span>
             <span class="cal small mono help"></span>
@@ -3189,7 +3200,7 @@ const ringHtml = ({kind, value, delta, target, label, color}) => {
             ${ring}
             ${tick}
         </svg>
-        <div class="ring-value mono">${String(value).replace('.', ',')}</div>
+        <div class="ring-value mono">${fmt(value, 1)}</div>
         <div class="small help center">${label}</div>
     </button>`;
 };
@@ -3301,6 +3312,14 @@ logRings.onclick = (e) => {
     if (ring) openLogSheet(ring.dataset.kind);
 };
 
+const labelFor = (key) => calculatedInputs[key].closest('.field').firstElementChild;
+
+const setManual = (key, manual) => {
+    person.manual = person.manual.filter((k) => k !== key);
+    if (manual) person.manual.push(key);
+    labelFor(key).classList.toggle("accent", manual);
+};
+
 const renderPerson = () => {
     if (person.birthdate) {
         const s = String(person.birthdate);
@@ -3323,11 +3342,11 @@ const renderPerson = () => {
     const t = person.targets;
     targetInput.sleep.value = fmt(t.sleep, 1);
     targetInput.steps.value = String(t.steps);
-    targetInput.water.value = fmt(t.water, 1);
+    targetInput.water.value = String(t.water);
     targetInput.weight.value = fmt(t.weight, 1);
 
-    const g = person.goals;
-    GOAL_KEYS.forEach(k => goalInput[k].value = fmt(g[k], 0));
+    GOAL_KEYS.forEach(k => goalInput[k].value = fmt(person.goals[k], 0));
+    Object.keys(calculatedInputs).forEach((key) => labelFor(key).classList.toggle("accent", person.manual.includes(key)));
 };
 
 /* --- Save on blur --- */
@@ -3365,6 +3384,17 @@ const applyPersonForm = () => {
     ...targetInputs,
     ...goalInputs,
 ].forEach((input) => input.addEventListener("blur", applyPersonForm));
+
+Object.entries(calculatedInputs).forEach(([key, input]) => {
+    input.addEventListener("input", () => setManual(key, true));
+    labelFor(key).addEventListener("click", (e) => {
+        if (!person.manual.includes(key)) return;
+        e.preventDefault();
+        setManual(key, false);
+        savePerson();
+        renderPerson();
+    });
+});
 
 onSegment(sexInput, "sex", (value) => {
     person.sex = value === "male" ? 1 : 0;
@@ -3405,7 +3435,7 @@ maskNumber(heightInput, 250, 0);
 maskNumber(weightInput, 500, 1);
 maskNumber(targetInput.sleep, 24, 1);
 maskNumber(targetInput.steps, 100000, 0);
-maskNumber(targetInput.water, 20, 1);
+maskNumber(targetInput.water, 20000, 0);
 maskNumber(targetInput.weight, 500, 1);
 maskNumber(goalInput.calories, 10000, 0);
 maskNumber(goalInput.protein, 1000, 1);
@@ -4223,7 +4253,7 @@ const renderScatter = (
 ) => {
     if (points.length < 2) return empty(id);
 
-    const {el, w, h, plot} = frame(id, CHART_HEIGHT + 16);
+    const {q, w, h, plot} = frame(id, CHART_HEIGHT + 16);
     plot.y0 -= 16;
     const xs = points.map((p) => p.x);
     const ys = points.map((p) => p.y);
@@ -4270,7 +4300,7 @@ const renderScatter = (
         })),
     );
 
-    el.innerHTML = svg(
+    q.innerHTML = svg(
         w,
         h,
         `<defs><clipPath id="${id}-clip"><rect x="${plot.x0}" y="${plot.y1}" width="${plot.x1 - plot.x0}" height="${plot.y0 - plot.y1}"></rect></clipPath></defs>` +

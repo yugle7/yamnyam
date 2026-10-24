@@ -29,8 +29,6 @@ window.TRANSLATIONS = {
         minus: "Уменьшить",
         plus: "Увеличить",
 
-        calculateGoals: "Сбросить к рекомендуемым",
-
         /* --- Diary --- */
         dayDetails: "Детали дня",
         noRecords: "Нет записей",

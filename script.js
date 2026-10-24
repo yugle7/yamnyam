@@ -74,7 +74,7 @@ const DEFAULT_PERSON = {
     birthdate: 0,
     height: 175,
     weight: 70,
-    activity: 1.375,
+    activity: 1.375
 };
 
 const LOGS = {
@@ -898,12 +898,14 @@ const weightInput = $("weight");
 const activityInput = $("activity");
 const activityLevel = $("activity-level");
 
-const targetInputs = {
+const targetInput = {
     sleep: $("target-sleep"),
     steps: $("target-steps"),
     water: $("target-water"),
     weight: $("target-weight")
 };
+
+const targetInputs = Object.values(targetInput);
 
 const TARGET_KEYS = ['sleep', 'steps', 'water', 'weight'];
 const GOAL_KEYS = [
@@ -916,7 +918,7 @@ const GOAL_KEYS = [
     "salt",
     "satFat",
 ];
-const goalInputs = {
+const goalInput = {
     calories: $("goal-calories"),
     protein: $("goal-protein"),
     fat: $("goal-fat"),
@@ -926,6 +928,8 @@ const goalInputs = {
     salt: $("goal-salt"),
     satFat: $("goal-satFat"),
 };
+const goalInputs = Object.values(goalInput);
+
 const exportButton = $("export");
 const importButton = $("import");
 const importInput = $("import-input");
@@ -1426,7 +1430,7 @@ const renderPage = (name, withLink = true) => {
         renderRange();
         renderStats();
     } else if (name === "person") {
-        renderPerson();
+       renderPerson();
     }
 };
 
@@ -1816,6 +1820,7 @@ applyLog.onclick = () => {
     if (logKind === "weight") {
         updatePersonWeight();
         savePerson();
+        renderPerson();
     }
     write(logKind, logs[logKind])
 
@@ -3297,10 +3302,6 @@ logRings.onclick = (e) => {
 };
 
 const renderPerson = () => {
-    fillPersonForm();
-};
-
-const fillPersonForm = () => {
     if (person.birthdate) {
         const s = String(person.birthdate);
         birthdate.digits = s.slice(6, 8) + s.slice(4, 6) + s.slice(0, 4);
@@ -3320,12 +3321,13 @@ const fillPersonForm = () => {
     weightInput.value = fmt(person.weight, 1);
 
     const t = person.targets;
-    targetInputs.sleep.value = fmt(t.sleep, 1);
-    targetInputs.steps.value = String(t.steps);
-    targetInputs.water.value = fmt(t.water, 1);
-    targetInputs.weight.value = fmt(t.weight, 1);
+    targetInput.sleep.value = fmt(t.sleep, 1);
+    targetInput.steps.value = String(t.steps);
+    targetInput.water.value = fmt(t.water, 1);
+    targetInput.weight.value = fmt(t.weight, 1);
 
-    GOAL_KEYS.forEach(k => goalInputs[k].value = fmt(person.goals[k], 0));
+    const g = person.goals;
+    GOAL_KEYS.forEach(k => goalInput[k].value = fmt(g[k], 0));
 };
 
 /* --- Save on blur --- */
@@ -3347,10 +3349,10 @@ const applyPersonForm = () => {
         updateLogsWeight();
     }
     TARGET_KEYS.forEach(name =>
-        person.targets[name] = parseNumber(targetInputs[name].value) || person.targets[name]);
+        person.targets[name] = parseNumber(targetInput[name].value) || person.targets[name]);
 
     GOAL_KEYS.forEach(name =>
-        person.goals[name] = parseNumber(goalInputs[name].value) || person.goals[name]);
+        person.goals[name] = parseNumber(goalInput[name].value) || person.goals[name]);
 
     savePerson();
     renderPerson();
@@ -3360,8 +3362,8 @@ const applyPersonForm = () => {
     birthdateInput,
     heightInput,
     weightInput,
-    ...Object.values(targetInputs),
-    ...Object.values(goalInputs),
+    ...targetInputs,
+    ...goalInputs,
 ].forEach((input) => input.addEventListener("blur", applyPersonForm));
 
 onSegment(sexInput, "sex", (value) => {
@@ -3401,18 +3403,18 @@ activityInput.addEventListener("change", () => {
 
 maskNumber(heightInput, 250, 0);
 maskNumber(weightInput, 500, 1);
-maskNumber(targetInputs.sleep, 24, 1);
-maskNumber(targetInputs.steps, 100000, 0);
-maskNumber(targetInputs.water, 20, 1);
-maskNumber(targetInputs.weight, 500, 1);
-maskNumber(goalInputs.calories, 10000, 0);
-maskNumber(goalInputs.protein, 1000, 1);
-maskNumber(goalInputs.fat, 1000, 1);
-maskNumber(goalInputs.carbs, 1000, 1);
-maskNumber(goalInputs.fiber, 200, 1);
-maskNumber(goalInputs.sugar, 500, 1);
-maskNumber(goalInputs.salt, 50, 1);
-maskNumber(goalInputs.satFat, 200, 1);
+maskNumber(targetInput.sleep, 24, 1);
+maskNumber(targetInput.steps, 100000, 0);
+maskNumber(targetInput.water, 20, 1);
+maskNumber(targetInput.weight, 500, 1);
+maskNumber(goalInput.calories, 10000, 0);
+maskNumber(goalInput.protein, 1000, 1);
+maskNumber(goalInput.fat, 1000, 1);
+maskNumber(goalInput.carbs, 1000, 1);
+maskNumber(goalInput.fiber, 200, 1);
+maskNumber(goalInput.sugar, 500, 1);
+maskNumber(goalInput.salt, 50, 1);
+maskNumber(goalInput.satFat, 200, 1);
 
 /* --- Birthdate --- */
 

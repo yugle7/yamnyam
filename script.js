@@ -2120,8 +2120,8 @@ const dotColor = (item) => {
     return "--yellow";
 };
 
-const macrosText = (n, f) =>
-    `${fmt(n.calories)} ${S.kcal} · ${S.protein[0]} ${fmt(n.protein * f)} · ${S.fat[0]} ${fmt(n.fat * f)} · ${S.carbs[0]} ${fmt(n.carbs * f)}`;
+const macrosText = (n, g = 1) =>
+    `${fmt(n.calories * g)} ${S.kcal} · ${S.protein[0]} ${fmt(n.protein * g)} · ${S.fat[0]} ${fmt(n.fat * g)} · ${S.carbs[0]} ${fmt(n.carbs * g)}`;
 
 const itemHtml = (item, i) => {
     const n = item.nutrition;
@@ -2131,7 +2131,7 @@ const itemHtml = (item, i) => {
             ? `<span class="dot" style="--dot:var(${dotColor(item)})"></span>`
             : "";
     const info = n
-        ? `<span>${fmt(n.calories * g)} ${S.kcal}</span><span>${macrosText(n, g)}</span>`
+        ? `<span class="help right">${macrosText(n, g)}</span>`
         : `<span class="red">${S.notFound}</span>`;
     return `<div class="card-item ${isProblem(item) ? "bad" : ""}" data-i="${i}" role="button" tabindex="0">
         <div class="row gap-10">
@@ -2139,7 +2139,7 @@ const itemHtml = (item, i) => {
             <div class="name">${clean(item.name)}</div>
             <div class="grams mono">${item.grams} ${S.g}</div>
         </div>
-        <div class="row small help mono between">${info}</div>
+        <div class="row small mono">${info}</div>
         ${healthBar(item.healthScore)}
     </div>`;
 };
@@ -2149,7 +2149,7 @@ const renderItems = () => {
     mealItems.innerHTML =
         meal.items.map(itemHtml).join("") +
         (meal.items.length
-            ? `<div class="total small mono">${fmt(s.calories)} ${S.kcal} · ${macrosText(s, 1)}</div>`
+            ? `<div class="total small mono">${macrosText(s)}</div>`
             : "");
     renderCta();
 };
@@ -2460,7 +2460,6 @@ const renderPortionInfo = () => {
             .sort((a, b) => b.value - a.value)
         : [];
     portionInfo.innerHTML = `
-        <div class="center mono">${fmt(n.calories * g)} ${S.kcal}</div>
         <div class="center small help mono">${macrosText(n, g)}</div>
         ${healthBar(item.healthScore)}
         ${micro.length ? `<div class="micro-chips">${micro.map((e) => `<span class="micro-chip mono">${e.label} ${Math.round(e.value)}%</span>`).join("")}</div>` : ""}`;

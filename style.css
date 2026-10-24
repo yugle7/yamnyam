@@ -187,10 +187,8 @@ textarea {
     user-select: text;
 }
 
-:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-}
+/*:focus-visible {*/
+/*}*/
 
 /* ==========================================================================
    3. УТИЛИТЫ
@@ -206,7 +204,7 @@ body:not(.photos) .needs-photos {
 
 /* Типографика */
 .gray {
-    color: gray;
+    color: gray !important;
 }
 
 .small {
@@ -655,6 +653,7 @@ textarea.input {
 
 .big-field input:focus {
     border-color: var(--accent);
+    outline: none;
 }
 
 .big-field span {

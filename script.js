@@ -3079,7 +3079,7 @@ addIngredient.onclick = () => openSearch("ingredient");
 
 const renderDishTags = () => {
     dishTags.innerHTML = tags
-        .map(tag => `<button class="tap ${dish.tags.has(tag) ? "selected" : ""}">${tag}</button>`)
+        .map(tag => `<button class="tap ${dish.tags.includes(tag) ? "selected" : ""}">${tag}</button>`)
         .join("");
 };
 

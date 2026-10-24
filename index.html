@@ -149,17 +149,14 @@
             </div>
 
             <div class="grid-4">
-                <label class="field"><span class="label" data-i18n="cal"></span><input id="dish-calories"
-                                                                                       class="input mono"
-                                                                                       inputmode="decimal"></label>
-                <label class="field"><span class="label" data-i18n="protein"></span><input id="dish-protein"
-                                                                                           class="input mono"
-                                                                                           inputmode="decimal"></label>
-                <label class="field"><span class="label" data-i18n="fat"></span><input id="dish-fat" class="input mono"
-                                                                                       inputmode="decimal"></label>
-                <label class="field"><span class="label" data-i18n="carbs"></span><input id="dish-carbs"
-                                                                                         class="input mono"
-                                                                                         inputmode="decimal"></label>
+                <label class="field"><span class="label" data-i18n="calories"></span>
+                    <input id="dish-calories" class="input mono" inputmode="decimal"></label>
+                <label class="field"><span class="label" data-i18n="protein"></span>
+                    <input id="dish-protein" class="input mono" inputmode="decimal"></label>
+                <label class="field"><span class="label" data-i18n="fat"></span>
+                    <input id="dish-fat" class="input mono" inputmode="decimal"></label>
+                <label class="field"><span class="label" data-i18n="carbs"></span>
+                    <input id="dish-carbs" class="input mono" inputmode="decimal"></label>
             </div>
 
             <button id="toggle-micro" class="left accent small"></button>
@@ -210,7 +207,11 @@
         </div>
     </div>
 
-    <button id="dish-save" class="fab-primary" data-i18n="save" disabled></button>
+    <button id="dish-save" class="fab-round" data-i18n-aria-label="save" disabled>
+        <svg>
+            <use href="sprite.svg#save"></use>
+        </svg>
+    </button>
     <button id="dish-cancel" class="fab-close" data-i18n-aria-label="cancel">
         <svg>
             <use href="sprite.svg#cancel"></use>

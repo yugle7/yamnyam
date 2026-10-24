@@ -4391,12 +4391,12 @@ const renderStats = () => {
             ? null
             : average(pastDays(addDays(b.start, -6), b.end).map(dayCalories));
     const series = [
-        {values: calories, color: "--accent", label: S.fact},
+        {values: calories, color: "--accent", label: S.calories},
         ...(period === WEEK
             ? [{values: buckets.map(weekAverage), color: "--green", label: S.avg7, thin: true}]
             : []),
     ];
-    renderLine("calories-chart", buckets, series, {value: g.calories, label: S.norm}, false, S.kcal);
+    renderLine("calories-chart", buckets, series, {value: g.calories, label: S.target}, false, S.kcal);
 
     const averageCalories = average(logged.map(dayCalories));
     setChartValue(

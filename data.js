@@ -188,7 +188,7 @@ window.TRANSLATIONS = {
         dayShort: "день",
         noData: "Нет данных за период",
         norm: "Норма",
-        fact: "Факт",
+        fact: "Величина",
         avg7: "Среднее за 7 дней",
         trend: "Тренд",
         normPercent: "% нормы",

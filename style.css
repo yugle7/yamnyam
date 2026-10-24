@@ -1615,7 +1615,7 @@ h2.group {
 }
 
 .chart .series.dash {
-    stroke-dasharray: 5 4;
+    stroke-dasharray: 10 8;
 }
 
 .chart .dot {
@@ -1705,7 +1705,7 @@ h2.group {
 .legend .key.dash {
     width: 14px;
     height: 0;
-    border-top: 2px dashed var(--color);
+    border-top: 2px solid var(--color);
     border-radius: 0;
 }
 

@@ -76,7 +76,7 @@ window.TRANSLATIONS = {
         nothingFound: "Ничего не найдено",
         create: "Создать",
         edit: "Изменить",
-        kcalPer100: "ккал/100 г",
+        kcalPer100: "ккал / 100г",
         portion: "Порция",
         grams: "Граммы",
         servingButton: (g) => `порция ${g}`,

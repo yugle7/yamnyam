@@ -3792,9 +3792,8 @@ const aggregate = (b) => {
 
 const aggregateWater = (b) => {
     if (b.start > new Date()) return null;
-    if (period === DAY) {
-        return getValue('water', getDateKey(getDateKey(b.start)));
-    }
+    // Water is logged as a daily total, so every hour of the day has the same value
+    if (period === DAY) return getValue('water', getDateKey(b.start));
     const values = pastDays(b.start, b.end)
         .map(d => getValue('water', getDateKey(d)))
         .filter((v) => v > 0);
@@ -3878,6 +3877,25 @@ const frame = (id, height = CHART_HEIGHT) => {
     return {q, w, h: height, plot};
 };
 
+const chartFrame = (id, height, buckets, scale) => {
+    const {q, w, h, plot} = frame(id, height);
+    const slot = (plot.x1 - plot.x0) / buckets.length;
+    return {
+        id,
+        q,
+        w,
+        h,
+        plot,
+        scale,
+        buckets,
+        slot,
+        x: (i) => plot.x0 + slot * (i + 0.5),
+        y: (v) =>
+            plot.y0 -
+            ((v - scale.lo) / (scale.hi - scale.lo)) * (plot.y0 - plot.y1),
+    };
+};
+
 const gridHtml = (plot, {ticks}, y) => {
     const text = tickFormat(ticks);
     return ticks
@@ -3922,14 +3940,35 @@ const hitRects = (id, n, x, plot, slot) =>
             `<rect class="hit" data-tip="${id}:${i}" x="${x(i) - slot / 2}" y="${plot.y1}" width="${slot}" height="${plot.y0 - plot.y1}"></rect>`,
     ).join("");
 
-const barPath = (x, y, w, h) => {
+const barPath = (x, y, w, h, up = true) => {
     if (h <= 0) return "";
     const r = Math.min(4, h, w / 2);
-    return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+    const bottom = y + h;
+    return up
+        ? `M${x},${bottom}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${bottom}Z`
+        : `M${x},${y}V${bottom - r}Q${x},${bottom} ${x + r},${bottom}H${x + w - r}Q${x + w},${bottom} ${x + w},${bottom - r}V${y}Z`;
 };
 
 const svg = (w, h, body) =>
     `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img">${body}</svg>`;
+
+const chartSvg = ({id, w, h, plot, scale, buckets, x, y, slot}, marks) =>
+    svg(
+        w,
+        h,
+        gridHtml(plot, scale, y) +
+            marks +
+            xLabelsHtml(buckets, x, plot) +
+            hitRects(id, buckets.length, x, plot, slot),
+    );
+
+const normalTips = (normal, decimals, unit, label = S.norm) =>
+    normal == null
+        ? []
+        : [{label, value: `${fmt(normal, decimals)} ${unit}`, color: "--help"}];
+
+const normalLegend = (normal, label = S.norm) =>
+    normal == null ? [] : [{label, color: "--help", kind: "dash"}];
 
 const renderLine = (
     id,
@@ -3946,7 +3985,6 @@ const renderLine = (
     const values = series.flatMap((s) => s.values).filter((v) => v != null);
     if (!values.length) return empty(id);
 
-    const {q, w, h, plot} = frame(id);
     const lo = min === "auto" ? Math.min(...values) : 0;
     const hiRaw = Math.max(...values, normal ?? 0);
     const scale =
@@ -3956,10 +3994,8 @@ const renderLine = (
                 hiRaw + Math.max(0.5, (hiRaw - lo) * 0.2),
             )
             : scaleY(0, hiRaw * 1.08 || 1);
-    const slot = (plot.x1 - plot.x0) / buckets.length;
-    const x = (i) => plot.x0 + slot * (i + 0.5);
-    const y = (v) =>
-        plot.y0 - ((v - scale.lo) / (scale.hi - scale.lo)) * (plot.y0 - plot.y1);
+    const chart = chartFrame(id, CHART_HEIGHT, buckets, scale);
+    const {q, plot, x, y} = chart;
 
     const paths = series
         .map((s) => {
@@ -4004,38 +4040,20 @@ const renderLine = (
                         value: `${fmt(s.values[i], decimals)} ${unit}`,
                         color: s.color,
                     })),
-                ...(normal != null
-                    ? [
-                        {
-                            label: normalLabel,
-                            value: `${fmt(normal, decimals)} ${unit}`,
-                            color: "--help",
-                        },
-                    ]
-                    : []),
+                ...normalTips(normal, decimals, unit, normalLabel),
             ],
         })),
     );
 
     q.innerHTML =
-        svg(
-            w,
-            h,
-            gridHtml(plot, scale, y) +
-            normalLine(plot, y, normal) +
-            paths +
-            xLabelsHtml(buckets, x, plot) +
-            hitRects(id, buckets.length, x, plot, slot),
-        ) +
+        chartSvg(chart, normalLine(plot, y, normal) + paths) +
         legendHtml([
             ...series.map((s) => ({
                 label: s.label,
                 color: s.color,
                 kind: s.dash ? "dash" : "line",
             })),
-            ...(normal != null && series.length
-                ? [{label: normalLabel, color: "--help", kind: "dash"}]
-                : []),
+            ...normalLegend(normal, normalLabel),
         ]);
 };
 
@@ -4051,13 +4069,10 @@ const renderStacked = (
     );
     if (!totals.some((v) => v > 0)) return empty(id);
 
-    const {q, w, h, plot} = frame(id);
     const scale = scaleY(0, Math.max(...totals, normal ?? 0) * 1.08);
-    const slot = (plot.x1 - plot.x0) / buckets.length;
+    const chart = chartFrame(id, CHART_HEIGHT, buckets, scale);
+    const {q, plot, x, y, slot} = chart;
     const bw = Math.min(24, slot * 0.6);
-    const x = (i) => plot.x0 + slot * (i + 0.5);
-    const y = (v) =>
-        plot.y0 - ((v - scale.lo) / (scale.hi - scale.lo)) * (plot.y0 - plot.y1);
 
     const bars = data
         .map((row, i) => {
@@ -4094,20 +4109,10 @@ const renderStacked = (
     );
 
     q.innerHTML =
-        svg(
-            w,
-            h,
-            gridHtml(plot, scale, y) +
-            bars +
-            normalLine(plot, y, normal) +
-            xLabelsHtml(buckets, x, plot) +
-            hitRects(id, buckets.length, x, plot, slot),
-        ) +
+        chartSvg(chart, bars + normalLine(plot, y, normal)) +
         legendHtml([
             ...keys.map((k) => ({label: labels[k], color: colors[k]})),
-            ...(normal != null
-                ? [{label: S.norm, color: "--help", kind: "dash"}]
-                : []),
+            ...normalLegend(normal),
         ]);
 };
 
@@ -4128,15 +4133,12 @@ const renderVBars = (
         .filter((v) => v != null && v !== 0);
     if (!values.length) return empty(id);
 
-    const {q, w, h, plot} = frame(id, height);
     const lo = Math.min(0, ...values);
     const hi = Math.max(0, ...values, normal ?? 0);
     const scale = scaleY(lo * 1.08, hi * 1.08 || 1);
-    const slot = (plot.x1 - plot.x0) / buckets.length;
+    const chart = chartFrame(id, height, buckets, scale);
+    const {q, plot, x, y, slot} = chart;
     const bw = Math.min(24, (slot * 0.6) / series.length);
-    const x = (i) => plot.x0 + slot * (i + 0.5);
-    const y = (v) =>
-        plot.y0 - ((v - scale.lo) / (scale.hi - scale.lo)) * (plot.y0 - plot.y1);
 
     const bars = series
         .map((s, j) =>
@@ -4149,13 +4151,9 @@ const renderVBars = (
                         (bw * series.length) / 2 -
                         (series.length - 1) +
                         j * (bw + 2);
-                    const top = y(Math.max(0, v));
-                    const height = Math.abs(y(v) - y(0));
-                    if (v > 0)
-                        return `<path d="${barPath(x0, top, bw, height)}" style="fill:var(${color})"></path>`;
-                    const r = Math.min(4, height, bw / 2);
-                    const yb = y(0) + height;
-                    return `<path d="M${x0},${y(0)}V${yb - r}Q${x0},${yb} ${x0 + r},${yb}H${x0 + bw - r}Q${x0 + bw},${yb} ${x0 + bw},${yb - r}V${y(0)}Z" style="fill:var(${color})"></path>`;
+                    const top = Math.min(y(0), y(v));
+                    const barHeight = Math.abs(y(v) - y(0));
+                    return `<path d="${barPath(x0, top, bw, barHeight, v > 0)}" style="fill:var(${color})"></path>`;
                 })
                 .join(""),
         )
@@ -4179,30 +4177,13 @@ const renderVBars = (
                         color:
                             typeof s.color === "function" ? s.color(s.values[i]) : s.color,
                     })),
-                ...(normal != null
-                    ? [
-                        {
-                            label: S.norm,
-                            value: `${fmt(normal, decimals)} ${unit}`,
-                            color: "--help",
-                        },
-                    ]
-                    : []),
+                ...normalTips(normal, decimals, unit),
             ],
         })),
     );
 
     q.innerHTML =
-        svg(
-            w,
-            h,
-            gridHtml(plot, scale, y) +
-            zero +
-            bars +
-            normalLine(plot, y, normal) +
-            xLabelsHtml(buckets, x, plot) +
-            hitRects(id, buckets.length, x, plot, slot),
-        ) +
+        chartSvg(chart, zero + bars + normalLine(plot, y, normal)) +
         legendHtml(
             legend || series.map((s) => ({label: s.label, color: s.color})),
         );
@@ -4421,12 +4402,17 @@ window.addEventListener("scroll", hideTip, {passive: true});
 
 const setChartValue = (id, text) => {
     const q = $(id).closest(".card").querySelector(".value");
-    if (q) q.textContent = text ? `— ${text}` : "";
+    if (q) q.textContent = text ? `${text}` : "";
 };
 
 const average = (values) => {
     const list = values.filter((v) => v != null);
     return list.length ? list.reduce((a, v) => a + v, 0) / list.length : null;
+};
+
+const dayCalories = (d) => {
+    const key = getDateKey(d);
+    return getMeals(key).length ? sumMeals(key).calories : null;
 };
 
 const MACRO_COLORS = {protein: "--yellow", fat: "--green", carbs: "--red"};
@@ -4467,11 +4453,7 @@ const renderStats = () => {
                 b.start > new Date()
                     ? null
                     : average(
-                        pastDays(addDays(b.start, -6), b.end).map((d) =>
-                            getMeals(getDateKey(d)).length
-                                ? sumMeals(getDateKey(d)).calories
-                                : null,
-                        ),
+                        pastDays(addDays(b.start, -6), b.end).map(dayCalories),
                     ),
             ),
         });
@@ -4483,7 +4465,7 @@ const renderStats = () => {
     setChartValue(
         "calories-chart",
         logged.length
-            ? `${fmt(average(logged.map((d) => sumMeals(getDateKey(d)).calories)))} ${S.kcal}/${S.dayShort}`
+            ? `${fmt(average(logged.map(dayCalories)))} ${S.kcal} / ${S.dayShort}`
             : "",
     );
 
@@ -4543,12 +4525,12 @@ const renderStats = () => {
         buckets,
         [
             {
-                values: period === DAY ? cumulative(water, buckets) : water,
+                values: water,
                 color: "--blue",
                 label: S.water,
             },
         ],
-        {normal: g.water, unit: S.ml},
+        {normal: person.targets.water, unit: S.ml},
     );
 
     /* 6. Calories by tags */
@@ -4601,7 +4583,7 @@ const renderStats = () => {
 
     /* 8. Health score */
     const allItems = rangeMeals.flatMap((m) => m.items);
-    const healthAvg = sumItems(allItems).healthScore;
+    const healthAvg = sumItems(allItems)?.healthScore;
     renderLine(
         "health-chart",
         buckets,
@@ -4694,9 +4676,9 @@ const renderStats = () => {
         days
             .map((d) => {
                 const w = getValue('weight', getDateKey(d));
-                const k = getDateKey(addDays(d, -lag));
-                if (w == null || !getMeals(k).length) return null;
-                return {x: sumMeals(k).calories, y: w, label: getDateText(d)};
+                const calories = dayCalories(addDays(d, -lag));
+                if (w == null || calories == null) return null;
+                return {x: calories, y: w, label: getDateText(d)};
             })
             .filter(Boolean),
         {xLabel: S.calories, yLabel: S.weight, xUnit: S.kcal, yUnit: S.kg},

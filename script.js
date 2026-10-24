@@ -61,7 +61,6 @@ const DAY = 0;
 const WEEK = 1;
 const MONTH = 2;
 
-const QUICK_GRAMS = [50, 100, 200, 500];
 const MAX_GRAMS = 5000;
 const DEFAULT_SERVING = 100;
 
@@ -864,9 +863,9 @@ const searchCancel = $("search-cancel");
 /* --- Portion --- */
 const portionSheet = $("portion-sheet");
 const portionTitle = $("portion-title");
-const portionNote = $("portion-note");
 const portionGrams = $("portion-grams");
-const portionQuick = $("portion-quick");
+const portionMinus = $("portion-minus");
+const portionPlus = $("portion-plus");
 const portionInfo = $("portion-info");
 const portionReplace = $("portion-replace");
 const portionCreate = $("portion-create");
@@ -2468,21 +2467,9 @@ const renderPortionInfo = () => {
 const openPortion = (i) => {
     portionIndex = i;
     const item = portionItem();
-    const food = findFood(item.foodId);
 
     portionTitle.textContent = item.name;
-    portionNote.textContent = item.foodId == null ? S.notFound : "";
     portionGrams.value = String(item.grams);
-
-    const quick = [...QUICK_GRAMS];
-    const serving = food?.servingGrams;
-    portionQuick.innerHTML =
-        quick
-            .map((g) => `<button class="tap chip" data-g="${g}">${g}</button>`)
-            .join("") +
-        (serving && !quick.includes(serving)
-            ? `<button class="tap chip" data-g="${serving}">${S.servingButton(serving)}</button>`
-            : "");
 
     portionCreate.classList.toggle("hidden", item.foodId != null);
     portionConfirmItem.classList.toggle(
@@ -2502,12 +2489,15 @@ const openPortion = (i) => {
 maskNumber(portionGrams, MAX_GRAMS, 0);
 portionGrams.addEventListener("input", renderPortionInfo);
 
-portionQuick.onclick = (e) => {
-    const button = e.target.closest("button");
-    if (!button) return;
-    portionGrams.value = button.dataset.grams;
+const shiftPortion = (direction) => {
+    const step = findFood(portionItem().foodId)?.servingGrams || DEFAULT_SERVING;
+    const grams = (parseNumber(portionGrams.value) || 0) + direction * step;
+    portionGrams.value = String(Math.max(0, Math.min(grams, MAX_GRAMS)));
     renderPortionInfo();
 };
+
+portionMinus.onclick = () => shiftPortion(-1);
+portionPlus.onclick = () => shiftPortion(1);
 
 const savePortion = (confirmed) => {
     const item = portionItem();

@@ -80,8 +80,7 @@ window.TRANSLATIONS = {
         portion: "Порция",
         grams: "Граммы",
         servingButton: (g) => `порция ${g}`,
-        replaceProduct: "Заменить продукт",
-        createProduct: "Создать продукт",
+        replace: "Заменить",
         confirmItem: "Подтвердить позицию",
 
         /* --- Tags --- */

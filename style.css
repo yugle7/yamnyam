@@ -1600,9 +1600,9 @@ h2.group {
 }
 
 .chart .normal {
-    stroke: var(--help);
+    stroke: var(--line);
     stroke-width: 1.5;
-    stroke-dasharray: 4 4;
+    stroke-dasharray: 8 6;
 }
 
 .chart .series {
@@ -1616,6 +1616,7 @@ h2.group {
 
 .chart .series.dash {
     stroke-dasharray: 10 8;
+    stroke: var(--line);
 }
 
 .chart .dot {
@@ -1704,10 +1705,14 @@ h2.group {
 
 .legend .key.dash {
     width: 14px;
-    height: 0;
-    border-top: 2px solid var(--color);
-    border-radius: 0;
+    height: 2px;
+    background: repeating-linear-gradient(
+            to right,
+            var(--color) 0 5px,
+            transparent 5px 8px
+    );
 }
+
 
 /* Подсказка */
 #chart-tip {

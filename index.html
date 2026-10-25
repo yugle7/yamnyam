@@ -251,20 +251,18 @@
     </div>
 
     <div class="card">
+        <h3 data-i18n="mealType"></h3>
+        <div class="chart" id="meal-type-chart"></div>
+    </div>
+
+    <div class="card">
         <h3 data-i18n="macros"></h3>
         <div class="chart" id="macros-chart"></div>
     </div>
 
     <div class="card">
-        <h3 data-i18n="balance"></h3>
+        <h3 data-i18n="macroImbalance"></h3>
         <div class="chart" id="balance-chart"></div>
-    </div>
-
-    <h2 class="group" data-i18n="distribution"></h2>
-
-    <div class="card">
-        <h3 data-i18n="mealType"></h3>
-        <div class="chart" id="meal-type-chart"></div>
     </div>
 
     <div class="card">
@@ -273,18 +271,17 @@
     </div>
 
     <div class="card">
-        <h3 data-i18n="tagsKcal"></h3>
-        <div class="chart" id="tags-cal-chart"></div>
+        <h3 data-i18n="nutrients"></h3>
+        <div class="segment small-segment" id="nutrient-mode" style="--n:2;--i:0">
+            <button data-mode="sum" class="active" data-i18n="sumMode"></button>
+            <button data-mode="pct" data-i18n="percentMode"></button>
+        </div>
+        <div class="chart" id="nutrient-chart"></div>
     </div>
 
     <div class="card">
-        <h3 data-i18n="weekday"></h3>
-        <div id="weekday-chart" class="col gap-10">
-            <div class="small help" data-i18n="mealsCount"></div>
-            <div class="chart" id="weekday-count"></div>
-            <div class="small help" data-i18n="avgKcal"></div>
-            <div class="chart" id="weekday-calories"></div>
-        </div>
+        <h3 data-i18n="micro"></h3>
+        <div class="chart" id="micro-chart"></div>
     </div>
 
     <h2 class="group" data-i18n="quality"></h2>
@@ -297,15 +294,6 @@
     <div class="card">
         <h3 data-i18n="streak"></h3>
         <div class="chart" id="streak-chart"></div>
-    </div>
-
-    <div class="card">
-        <h3 data-i18n="nutrients"></h3>
-        <div class="segment small-segment" id="nutrient-mode" style="--n:2;--i:0">
-            <button data-mode="sum" class="active" data-i18n="sumMode"></button>
-            <button data-mode="pct" data-i18n="percentMode"></button>
-        </div>
-        <div class="chart" id="nutrient-chart"></div>
     </div>
 
     <h2 class="group" data-i18n="links"></h2>
@@ -345,12 +333,6 @@
     <div class="card">
         <h3 data-i18n="heatmap"></h3>
         <div class="chart" id="hour-heatmap"></div>
-    </div>
-
-    <h2 class="group" data-i18n="micro"></h2>
-
-    <div class="card">
-        <div class="chart" id="micro-chart"></div>
     </div>
 </section>
 

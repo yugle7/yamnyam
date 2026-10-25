@@ -1609,6 +1609,11 @@ h2.group {
     stroke-dasharray: 8 6;
 }
 
+.chart .area {
+    fill-opacity: 0.8;
+    stroke: none;
+}
+
 .chart .series {
     fill: none;
     stroke-width: 2;

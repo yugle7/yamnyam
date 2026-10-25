@@ -4031,7 +4031,30 @@ const renderLine = (
         ]);
 };
 
-const renderStacked = (
+const stackedTotals = (data, keys) =>
+    data.map((row) =>
+        row ? keys.reduce((sum, k) => sum + (row[k] || 0), 0) : 0,
+    );
+
+const setStackedTips = (id, buckets, keys, data, colors, labels, unit) =>
+    setTips(
+        id,
+        buckets.map((b, i) => ({
+            title: b.title || b.label,
+            rows: keys.map((k) => ({
+                label: labels[k],
+                value: data[i] ? `${fmt(data[i][k])} ${unit}` : "—",
+                color: colors[k],
+            })),
+        })),
+    );
+
+const stackedLegend = (keys, labels, colors) =>
+    legendHtml(
+        keys.map((k) => ({label: labels[k], color: colors[k], kind: "rect"})),
+    );
+
+const renderBarStacked = (
     id,
     buckets,
     keys,
@@ -4040,15 +4063,13 @@ const renderStacked = (
     labels,
     unit = ""
 ) => {
-    const totals = data.map((row) =>
-        row ? keys.reduce((s, k) => s + (row[k] || 0), 0) : 0,
-    );
+    const totals = stackedTotals(data, keys);
     if (!totals.some((v) => v > 0)) return empty(id);
 
     const scale = scaleY(0, Math.max(...totals) * 1.08);
     const chart = chartFrame(id, CHART_HEIGHT, buckets, scale);
     const {q, x, y, slot} = chart;
-    const bw = Math.min(24, slot * 0.6);
+    const bw = Math.min(16, slot * 0.6);
 
     const bars = data
         .map((row, i) => {
@@ -4072,19 +4093,65 @@ const renderStacked = (
         })
         .join("");
 
-    setTips(
-        id,
-        buckets.map((b, i) => ({
-            title: b.title || b.label,
-            rows: keys.map((k) => ({
-                label: labels[k],
-                value: data[i] ? `${fmt(data[i][k])} ${unit}` : "—",
-                color: colors[k]
-            })),
-        })),
-    );
+    setStackedTips(id, buckets, keys, data, colors, labels, unit);
+    q.innerHTML = chartSvg(chart, bars) + stackedLegend(keys, labels, colors);
+};
 
-    q.innerHTML = chartSvg(chart, bars) + legendHtml(keys.map(k => ({label: labels[k], color: colors[k], kind: "rect"})));
+const renderAreaStacked = (
+    id,
+    buckets,
+    keys,
+    data,
+    colors,
+    labels,
+    unit = ""
+) => {
+    const totals = stackedTotals(data, keys);
+    if (!totals.some((v) => v > 0)) return empty(id);
+
+    const scale = scaleY(0, Math.max(...totals) * 1.08);
+    const chart = chartFrame(id, CHART_HEIGHT, buckets, scale);
+    const {q, x, y, slot} = chart;
+
+    // One filled band per key, broken at buckets without data
+    const stacks = data.map((row) => {
+        let total = 0;
+        return keys.map((k) => (total += row?.[k] || 0));
+    });
+    const runs = [];
+    let run = [];
+    data.forEach((row, i) => {
+        if (row) run.push(i);
+        else if (run.length) {
+            runs.push(run);
+            run = [];
+        }
+    });
+    if (run.length) runs.push(run);
+
+    const areas = runs
+        .flatMap((indices) =>
+            keys.map((key, j) => {
+                const first = indices[0];
+                const last = indices.at(-1);
+                const lower = (i) => y(j ? stacks[i][j - 1] : 0);
+                const top = [
+                    `${x(first) - slot / 2},${y(stacks[first][j])}`,
+                    ...indices.map((i) => `${x(i)},${y(stacks[i][j])}`),
+                    `${x(last) + slot / 2},${y(stacks[last][j])}`,
+                ];
+                const bottom = [
+                    `${x(last) + slot / 2},${lower(last)}`,
+                    ...indices.map((i) => `${x(i)},${lower(i)}`).reverse(),
+                    `${x(first) - slot / 2},${lower(first)}`,
+                ];
+                return `<path class="area" d="M${top.join("L")}L${bottom.join("L")}Z" style="fill:var(${colors[key]})"></path>`;
+            }),
+        )
+        .join("");
+
+    setStackedTips(id, buckets, keys, data, colors, labels, unit);
+    q.innerHTML = chartSvg(chart, areas) + stackedLegend(keys, labels, colors);
 };
 
 const renderVBars = (
@@ -4154,22 +4221,6 @@ const renderVBars = (
         }
     }
     q.innerHTML = chartSvg(chart, zero + bars + normalLine(plot, y, normal)) + legendHtml(legend);
-};
-
-const renderHList = (id, entries) => {
-    const q = $(id);
-    if (!entries.length) return empty(id);
-    const total = Math.max(...entries.map((e) => e.value));
-    const dst = entries.map(({label, value, text}) =>
-        `<div class="h-col">
-            <div class="h-label">${clean(label)}</div>
-            <div class="h-value" style="--count:${value}">
-                <div class="h-bar" style="--color:var(--accent)"></div>
-                <span class="h-number">${text}</span>
-            </div>
-        </div>`
-    ).join("")
-    q.innerHTML = `<div class="h-list" style="--total:${total}">${dst}</div>`;
 };
 
 const renderKPI = (id, value, label, sub) => {
@@ -4364,6 +4415,21 @@ const dayCalories = (d) => {
     return getMeals(key).length ? sumMeals(key).calories : null;
 };
 
+// Calories that would need to move between macros to match the goal ratio
+const macroImbalance = (sum, goals) => {
+    const actual = Object.entries(KCAL_PER_GRAM).map(([k, f]) => sum[k] * f);
+    const target = Object.entries(KCAL_PER_GRAM).map(([k, f]) => goals[k] * f);
+    const actualTotal = actual.reduce((a, v) => a + v, 0);
+    const targetTotal = target.reduce((a, v) => a + v, 0);
+    if (!actualTotal || !targetTotal) return null;
+
+    const deviation = actual.reduce(
+        (acc, v, i) => acc + Math.abs(v / actualTotal - target[i] / targetTotal),
+        0,
+    );
+    return (deviation * actualTotal) / 2;
+};
+
 const MACRO_COLORS = {protein: "--yellow", fat: "--green", carbs: "--red"};
 const MEAL_COLORS = {
     [SNACK]: "--yellow",
@@ -4394,7 +4460,7 @@ const renderStats = () => {
     const dayBuckets =
         period === DAY ? [{label: getDateText(start), start, end}] : buckets;
 
-    /* 1. Calories */
+    /* Calories */
     const calories =
         period === DAY ? cumulative(field("calories"), buckets) : field("calories");
     const weekAverage = (b) =>
@@ -4402,9 +4468,9 @@ const renderStats = () => {
             ? null
             : average(pastDays(addDays(b.start, -6), b.end).map(dayCalories));
     const series = [
-        {values: calories, color: "--accent", label: S.avg1},
+        {values: calories, color: "--accent", label: S.consumed},
         ...(period === WEEK
-            ? [{values: buckets.map(weekAverage), color: "--green", label: S.avg7, thin: true}]
+            ? [{values: buckets.map(weekAverage), color: "--green", label: S.sevenDaysAverage, thin: true}]
             : []),
     ];
     renderLine("calories-chart", buckets, series, {value: g.calories, label: S.target}, false, S.kcal);
@@ -4417,51 +4483,31 @@ const renderStats = () => {
             : `${fmt(averageCalories)} ${S.kcal} / ${S.dayShort}`,
     );
 
-    /* 2. PFC */
-    renderStacked(
+    /* PFC */
+    renderAreaStacked(
         "macros-chart", buckets, ["protein", "fat", "carbs"], sums,
         MACRO_COLORS, {protein: S.protein, fat: S.fat, carbs: S.carbs}, S.g
     );
 
-    /* 3. Balance */
+    /* PFC imbalance */
     const daySums = dayBuckets.map(aggregateDays);
-    renderVBars(
+    const imbalance = daySums.map((s) => (s ? macroImbalance(s, g) : null));
+    renderLine(
         "balance-chart",
         dayBuckets,
-        [
-            {
-                label: S.calories,
-                values: daySums.map((s) => (s ? s.calories - g.calories : null)),
-                color: (v) => (v > 0 ? "--blue" : "--green"),
-            },
-            {
-                label: S.macroImbalance,
-                values: daySums.map((s) =>
-                    s
-                        ? Object.entries(KCAL_PER_GRAM).reduce(
-                            (acc, [k, f]) => acc + Math.abs(s[k] - g[k]) * f,
-                            0,
-                        )
-                        : null,
-                ),
-                color: "--yellow",
-            },
-        ],
-        null, S.kcal, 0, CHART_HEIGHT,
-        [
-            {label: S.kcalOver, color: "--blue", kind: "rect"},
-            {label: S.kcalUnder, color: "--green", kind: "rect"},
-            {label: S.macroImbalance, color: "--yellow", kind: "rect"},
-        ]
+        [{values: imbalance, color: "--yellow", label: S.macroImbalance}],
+        {},
+        false,
+        S.kcal,
     );
 
-    /* 4. By eatings */
-    renderStacked(
+    /* Calories by meal */
+    renderBarStacked(
         "meal-type-chart", buckets, MEAL_TYPES, sums,
         MEAL_COLORS, S.mealTypes, S.kcal
     );
 
-    /* 5. Water */
+    /* Water */
     const water = dayBuckets.map(aggregateWater);
     renderVBars(
         "water-chart",
@@ -4473,52 +4519,7 @@ const renderStats = () => {
         140,
     );
 
-    /* 6. Calories by tags */
-    const tagKcal = new Map();
-    rangeMeals.forEach((m) => {
-        const k = sumItems(m.items).calories;
-        m.tags.forEach((t) => tagKcal.set(t, (tagKcal.get(t) || 0) + k));
-    });
-    renderHList(
-        "tags-cal-chart",
-        [...tagKcal.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10)
-            .map(([label, value]) => ({
-                label,
-                value,
-                text: `${fmt(value)} ${S.kcal}`,
-            })),
-    );
-
-    /* 7. Weekdays */
-    const weekdays = S.wds.map((label, i) => {
-        const list = logged
-            .filter((d) => getWeekday(d) === i)
-            .map((d) => daySummaryOf(getMeals(getDateKey(d))));
-        return {
-            label,
-            count: average(list.map((s) => s.count)),
-            calories: average(list.map((s) => s.calories)),
-        };
-    });
-    renderVBars(
-        "weekday-count", weekdays, [
-            {
-                values: weekdays.map((d) => d.count),
-                color: "--green",
-                label: S.mealsCount,
-            },
-        ], null, "", 1, 140,
-    );
-    renderVBars(
-        "weekday-calories",
-        weekdays,
-        [{values: weekdays.map((d) => d.calories), color: "--accent", label: S.calories}],
-        null, S.kcal, 0, 140,
-    );
-
-    /* 8. Health score */
+    /* Health score */
     const allItems = rangeMeals.flatMap((m) => m.items);
     const healthAvg = sumItems(allItems)?.healthScore;
     renderLine(
@@ -4530,7 +4531,7 @@ const renderStats = () => {
     );
     setChartValue("health-chart", healthAvg == null ? "" : fmt(healthAvg));
 
-    /* 9. Streak */
+    /* Streak */
     const fromDay = logged.length ? Math.min(...[...mealsIndex.keys()]) : null;
     const counted = days.filter((d) => fromDay != null && getDateKey(d) >= fromDay);
     const streak = getStreaks();
@@ -4543,7 +4544,7 @@ const renderStats = () => {
         S.streakText(streak.current, streak.best),
     );
 
-    /* 10. Fiber, sugar, salt, saturated fats */
+    /* Nutrients */
     const pct = nutrientMode === "pct";
     const nutrientSeries = NUTRIENT_CHARTS.map((k) => ({
         values: field(k).map((v) =>
@@ -4562,7 +4563,7 @@ const renderStats = () => {
         pct ? 0 : 1,
     );
 
-    /* 11. Weight */
+    /* Weight */
     const weights = buckets.map((b) => {
         if (period === DAY) {
             const entries = logs.weight.filter(
@@ -4611,7 +4612,7 @@ const renderStats = () => {
             : "",
     );
 
-    /* 12. Weight and calories */
+    /* Weight vs calories */
     renderScatter(
         "weight-calories-scatter",
         days
@@ -4625,7 +4626,7 @@ const renderStats = () => {
         {xLabel: S.calories, yLabel: S.weight, xUnit: S.kcal, yUnit: S.kg},
     );
 
-    /* 13. Triggers */
+    /* Triggers */
     renderScatter(
         "trigger-scatter",
         days
@@ -4649,7 +4650,7 @@ const renderStats = () => {
         },
     );
 
-    /* 14. Hours × weekdays */
+    /* Rhythm */
     const matrix = Array.from({length: 7}, () => Array(24).fill(0));
     rangeMeals.forEach((m) => {
         const d = new Date(m.eaten);
@@ -4657,7 +4658,7 @@ const renderStats = () => {
     });
     renderHeatmap("hour-heatmap", matrix, Math.max(...matrix.flat()));
 
-    /* 15. Micronutrients */
+    /* Micronutrients */
     const micro = Object.fromEntries(
         MICRO_KEYS.map((k) => {
             const values = logged

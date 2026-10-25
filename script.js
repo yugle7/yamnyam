@@ -1988,7 +1988,7 @@ clearText.onclick = () => {
     mealText.value = "";
     clearText.classList.add("hidden");
     growMealText();
-    parseLater.flush();
+    applyParse();
     mealText.focus();
 };
 
@@ -2010,7 +2010,7 @@ iconVoice.onclick = () => {
         mealText.value = current ? `${current}, ${text}` : text;
         clearText.classList.remove("hidden");
         growMealText();
-        parseLater.flush();
+        applyParse();
     };
     recognition.onerror = () => iconVoice.classList.remove("listening");
     recognition.onend = () => iconVoice.classList.remove("listening");

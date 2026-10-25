@@ -3639,9 +3639,6 @@ resetButton.onclick = () => showModal(S.resetQuestion, resetData);
 let period = WEEK;
 let currentDate = new Date();
 let nutrientMode = "sum";
-let lag = 0;
-let triggerX = "sleep";
-let triggerY = "calories";
 
 const getRange = (d, p) => {
     d = startOfDay(d);
@@ -3906,9 +3903,9 @@ const xLabelsHtml = (buckets, x, {y0}) => buckets.map(
 ).join("");
 
 const legendHtml = src => {
-    if (src.length < 2) return "";
+    if (!src.length) return "";
     const dst = src.map(({label, color, kind}) =>
-        `<span class="legend-item"><i class="key ${kind}" style="--color:var(${color})"></i>${clean(label)}</span>`
+        `<span class="legend-item"><i class="key ${kind}" style="--color:var(${color})"></i>${label}</span>`
     ).join("");
     return `<div class="legend">${dst}</div>`;
 };
@@ -4209,7 +4206,7 @@ const renderVBars = (
                         value: `${s.values[i] > 0 && lo < 0 ? "+" : ""}${fmt(s.values[i], decimals)} ${unit}`,
                         color: typeof s.color === "function" ? s.color(s.values[i]) : s.color,
                     })),
-                ...normalTips(normal, decimals, unit),
+                ...normalTips(normal, decimals, unit, S.norm),
             ],
         })),
     );
@@ -4217,90 +4214,18 @@ const renderVBars = (
     if (!legend) {
         legend = series.map((s) => ({label: s.label, color: s.color, kind: "rect"}));
         if (normal != null) {
-            legend.push({label: S.norm, color: "--help", kind: "dash"});
+            legend.push({label: S.norm, color: "--line", kind: "dash"});
         }
     }
     q.innerHTML = chartSvg(chart, zero + bars + normalLine(plot, y, normal)) + legendHtml(legend);
 };
 
-const renderKPI = (id, value, label, sub) => {
+const renderKPI = (id, value, record) => {
     if (value == null) return empty(id);
     $(id).innerHTML = `<div class="kpi">
         <div class="kpi-value">${value}</div>
-        <div class="help">${label}</div>
-        <div class="small help">${sub}</div>
+        <div class="small help">${record}</div>
     </div>`;
-};
-
-const renderScatter = (id, points, {xLabel, yLabel, xUnit = "", yUnit = ""}) => {
-    if (points.length < 2) return empty(id);
-
-    const {q, w, h, plot} = frame(id, CHART_HEIGHT + 16);
-    plot.y0 -= 16;
-
-    const {x0, x1, y0, y1} = plot;
-    const xs = points.map((p) => p.x);
-    const ys = points.map((p) => p.y);
-    const sx = scaleY(
-        Math.min(...xs),
-        Math.max(...xs) + (Math.max(...xs) === Math.min(...xs) ? 1 : 0),
-    );
-    const yPad = Math.max(0.5, (Math.max(...ys) - Math.min(...ys)) * 0.15);
-    const yMin = Math.min(...ys);
-    const sy = scaleY(
-        yMin >= 0 ? Math.max(0, yMin - yPad) : yMin - yPad,
-        Math.max(...ys) + yPad,
-    );
-    const x = (v) => x0 + ((v - sx.lo) / (sx.hi - sx.lo)) * (x1 - x0);
-    const y = (v) => y0 - ((v - sy.lo) / (sy.hi - sy.lo)) * (y0 - y1);
-
-    // Thin out X-axis labels so they do not collide
-    const xText = tickFormat(sx.ticks);
-    const labelWidth = Math.max(...sx.ticks.map((v) => xText(v).length)) * 7 + 12;
-    const every = Math.ceil((labelWidth * sx.ticks.length) / (x1 - x0));
-    const xTicks = sx.ticks
-        .map((v, i) => {
-            if (i % every) return "";
-            const anchor =
-                i === 0 ? "start" : i === sx.ticks.length - 1 ? "end" : "middle";
-            return `<text class="tick" x="${x(v)}" y="${y0 + 18}" text-anchor="${anchor}">${xText(v)}</text>`;
-        })
-        .join("");
-    const trend = linearRegression(points);
-    const trendLine = trend
-        ? `<line class="trend" x1="${x(sx.lo)}" x2="${x(sx.hi)}" y1="${y(trend.a + trend.b * sx.lo)}" y2="${y(trend.a + trend.b * sx.hi)}"></line>`
-        : "";
-
-    setTips(
-        id,
-        points.map((p) => ({
-            title: p.label,
-            rows: [
-                {label: xLabel, value: `${fmt(p.x, 1)} ${xUnit}`, color: "--accent"},
-                {label: yLabel, value: `${fmt(p.y, 1)} ${yUnit}`, color: "--accent"},
-            ],
-        })),
-    );
-
-    q.innerHTML = svg(
-        w,
-        h,
-        `<defs><clipPath id="${id}-clip"><rect x="${x0}" y="${y1}" width="${x1 - x0}" height="${y0 - y1}"></rect></clipPath></defs>` +
-        gridHtml(plot, sy, y) +
-        xTicks +
-        `<g clip-path="url(#${id}-clip)">${trendLine}</g>` +
-        points
-            .map(
-                (
-                    p,
-                    i,
-                ) => `<circle class="dot" cx="${x(p.x)}" cy="${y(p.y)}" r="4" style="fill:var(--accent)"></circle>
-            <circle class="hit" data-tip="${id}:${i}" cx="${x(p.x)}" cy="${y(p.y)}" r="12"></circle>`,
-            )
-            .join("") +
-        `<text class="axis-label" x="${x1}" y="${h - 2}" text-anchor="end">${clean(xLabel)}</text>` +
-        `<text class="axis-label" x="${x0}" y="${y1 - 2}" text-anchor="start">${clean(yLabel)}</text>`,
-    );
 };
 
 const renderHeatmap = (id, matrix, max) => {
@@ -4415,6 +4340,13 @@ const dayCalories = (d) => {
     return getMeals(key).length ? sumMeals(key).calories : null;
 };
 
+const averageLog = (kind, bucket) =>
+    average(
+        pastDays(bucket.start, bucket.end).map(
+            (d) => logs[kind].find((e) => e.key === getDateKey(d))?.value,
+        ),
+    );
+
 // Calories that would need to move between macros to match the goal ratio
 const macroImbalance = (sum, goals) => {
     const actual = Object.entries(KCAL_PER_GRAM).map(([k, f]) => sum[k] * f);
@@ -4484,10 +4416,18 @@ const renderStats = () => {
     );
 
     /* PFC */
+    const macroKeys = ["protein", "fat", "carbs"];
     renderAreaStacked(
-        "macros-chart", buckets, ["protein", "fat", "carbs"], sums,
+        "macros-chart", buckets, macroKeys, sums,
         MACRO_COLORS, {protein: S.protein, fat: S.fat, carbs: S.carbs}, S.g
     );
+    const macroAverages = macroKeys.map((k) =>
+        average(logged.map((d) => sumMeals(getDateKey(d))?.[k])),
+    );
+    const macroText = macroKeys
+        .map((k, i) => `${S[k][0]} ${fmt(macroAverages[i])}`)
+        .join(" · ");
+    setChartValue("macros-chart", logged.length ? `${macroText} ${S.g}` : "");
 
     /* PFC imbalance */
     const daySums = dayBuckets.map(aggregateDays);
@@ -4500,12 +4440,27 @@ const renderStats = () => {
         false,
         S.kcal,
     );
+    const averageImbalance = average(imbalance);
+    setChartValue(
+        "balance-chart",
+        averageImbalance == null ? "" : `${fmt(averageImbalance)} ${S.kcal}`,
+    );
 
     /* Calories by meal */
-    renderBarStacked(
+    renderAreaStacked(
         "meal-type-chart", buckets, MEAL_TYPES, sums,
         MEAL_COLORS, S.mealTypes, S.kcal
     );
+    const mealTotals = Object.fromEntries(MEAL_TYPES.map((t) => [t, 0]));
+    rangeMeals.forEach((m) => {
+        mealTotals[m.type] += sumItems(m.items)?.calories || 0;
+    });
+    const mealTotal = Object.values(mealTotals).reduce((sum, v) => sum + v, 0);
+    const mealStats = MEAL_TYPES
+        .filter((t) => mealTotals[t] > 0)
+        .map((t) => `${S.mealTypes[t][0]} ${fmt((mealTotals[t] / mealTotal) * 100)}`)
+        .join(" · ");
+    setChartValue("meal-type-chart", mealTotal ? mealStats + ' %' : "");
 
     /* Water */
     const water = dayBuckets.map(aggregateWater);
@@ -4518,30 +4473,35 @@ const renderStats = () => {
         0,
         140,
     );
+    const averageWater = average(water.filter((v) => v > 0));
+    setChartValue("water-chart", averageWater == null ? "" : `${fmt(averageWater)} ${S.ml} / ${S.dayShort}`);
 
     /* Health score */
     const allItems = rangeMeals.flatMap((m) => m.items);
-    const healthAvg = sumItems(allItems)?.healthScore;
+    const averageHealth = sumItems(allItems)?.healthScore;
     renderLine(
         "health-chart",
         buckets,
         [{values: field("health"), color: "--green", label: S.healthScore}],
-        {value: healthAvg, label: S.average},
+        {value: averageHealth, label: S.average},
         false,
     );
-    setChartValue("health-chart", healthAvg == null ? "" : fmt(healthAvg));
+    setChartValue("health-chart", averageHealth == null ? "" : fmt(averageHealth));
 
     /* Streak */
-    const fromDay = logged.length ? Math.min(...[...mealsIndex.keys()]) : null;
-    const counted = days.filter((d) => fromDay != null && getDateKey(d) >= fromDay);
+    const normDays = logged.filter((d) => inNorm(getDateKey(d))).length;
+    const totalDays = logged.length;
     const streak = getStreaks();
     renderKPI(
         "streak-chart",
-        counted.length
-            ? `${fmt((counted.filter((d) => inNorm(getDateKey(d))).length / counted.length) * 100)}%`
+        totalDays
+            ? `${fmt((normDays / totalDays) * 100)}%`
             : null,
-        S.daysInNorm,
-        S.streakText(streak.current, streak.best),
+        S.streakRecord(streak.current, streak.best),
+    );
+    setChartValue(
+        "streak-chart",
+        totalDays ? S.streakDays(streak.current) : "",
     );
 
     /* Nutrients */
@@ -4557,11 +4517,23 @@ const renderStats = () => {
         "nutrient-chart",
         buckets,
         nutrientSeries,
-        pct && period !== DAY ? {value: 100, label: S.norm} : {},
+        {},
         false,
         pct ? "%" : S.g,
         pct ? 0 : 1,
     );
+    const digits = pct ? 0 : 1;
+    const unit = pct ? "%" : S.g;
+    const nutrientStats = nutrientSeries
+        .map((s) => {
+            const avg = average(s.values);
+            return avg == null
+                ? ""
+                : `${s.label[0]} ${fmt(avg, 0)}`;
+        })
+        .filter(Boolean)
+        .join(" · ");
+    setChartValue("nutrient-chart", nutrientStats + ' ' + unit);
 
     /* Weight */
     const weights = buckets.map((b) => {
@@ -4605,49 +4577,52 @@ const renderStats = () => {
         1,
     );
     const known = weights.filter((v) => v != null);
+    const averageWeight = average(known);
+    const weightChange = known.length >= 2 ? known.at(-1) - known[0] : null;
+    const changeText = weightChange == null
+        ? ""
+        : `${weightChange > 0 ? "+" : ""}${fmt(weightChange, 1)} ${S.kg}`;
     setChartValue(
         "weight-chart",
-        known.length >= 2
-            ? `${known.at(-1) - known[0] > 0 ? "+" : ""}${fmt(known.at(-1) - known[0], 1)} ${S.kg}`
-            : "",
+        averageWeight == null
+            ? ""
+            : changeText,
     );
 
-    /* Weight vs calories */
-    renderScatter(
-        "weight-calories-scatter",
-        days
-            .map((d) => {
-                const w = getValue('weight', getDateKey(d));
-                const calories = dayCalories(addDays(d, -lag));
-                if (w == null || calories == null) return null;
-                return {x: calories, y: w, label: getDateText(d)};
-            })
-            .filter(Boolean),
-        {xLabel: S.calories, yLabel: S.weight, xUnit: S.kcal, yUnit: S.kg},
+    /* Sleep */
+    const sleep = dayBuckets.map((b) => averageLog("sleep", b));
+    renderVBars(
+        "sleep-chart",
+        dayBuckets,
+        [{values: sleep, color: "--blue", label: S.sleep}],
+        person.targets.sleep,
+        S.h,
+        1,
+        140,
+    );
+    const averageSleep = average(sleep);
+    setChartValue(
+        "sleep-chart",
+        averageSleep == null
+            ? ""
+            : `${fmt(averageSleep, 1)} ${S.h} / ${S.dayShort}`,
     );
 
-    /* Triggers */
-    renderScatter(
-        "trigger-scatter",
-        days
-            .map((d) => {
-                const key = getDateKey(d);
-                const xv = triggerX === "sleep" ? getValue('sleep', key) : getValue('steps', key);
-                if (xv == null || !getMeals(key).length) return null;
-                const s = sumMeals(key);
-                return {
-                    x: xv,
-                    y: triggerY === "calories" ? s.calories : s.sugar,
-                    label: getDateText(d),
-                };
-            })
-            .filter(Boolean),
-        {
-            xLabel: triggerX === "sleep" ? S.sleepHours : S.steps,
-            yLabel: triggerY === "calories" ? S.calories : S.sugar,
-            xUnit: triggerX === "sleep" ? S.h : "",
-            yUnit: triggerY === "calories" ? S.kcal : S.g,
-        },
+    /* Steps */
+    const steps = dayBuckets.map((b) => averageLog("steps", b));
+    renderVBars(
+        "steps-chart",
+        dayBuckets,
+        [{values: steps, color: "--green", label: S.steps}],
+        person.targets.steps,
+        "",
+        0,
+        140,
+    );
+    const averageSteps = average(steps);
+    setChartValue(
+        "steps-chart",
+        averageSteps == null ? "" : `${fmt(averageSteps)} ${S.st} / ${S.dayShort}`,
     );
 
     /* Rhythm */
@@ -4715,18 +4690,6 @@ periodArea.onclick = (e) => {
 
 onSegment($("nutrient-mode"), "mode", (v) => {
     nutrientMode = v;
-    renderStats();
-});
-onSegment($("lag"), "lag", (v) => {
-    lag = +v;
-    renderStats();
-});
-onSegment($("trigger-x"), "x", (v) => {
-    triggerX = v;
-    renderStats();
-});
-onSegment($("trigger-y"), "y", (v) => {
-    triggerY = v;
     renderStats();
 });
 

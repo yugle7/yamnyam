@@ -2457,15 +2457,16 @@ const openPortion = (i) => {
     portionTitle.textContent = item.name;
     portionGrams.value = String(item.grams);
 
-    portionCreate.classList.toggle("hidden", item.foodId != null);
+    const exists = item.foodId != null;
+    portionReplace.classList.toggle("hidden", !exists);
+    portionCreate.classList.toggle("hidden", exists);
+    portionConfirm.classList.toggle("hidden", !exists);
     portionConfirmItem.classList.toggle(
         "hidden",
-        (
+        !exists ||
             item.source !== "parse" ||
             item.confidence >= 0.8 ||
-            item.confirmed ||
-            item.foodId == null
-        ),
+            item.confirmed,
     );
 
     renderPortionInfo();

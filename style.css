@@ -208,7 +208,7 @@ body:not(.photos) .needs-photos {
 }
 
 .small {
-    font-size: 14px;
+    font-size: 14px !important;
 }
 
 .big {
@@ -225,6 +225,10 @@ body:not(.photos) .needs-photos {
 
 .help {
     color: var(--help);
+}
+
+.left-10 {
+    padding-left: 10px;
 }
 
 .red {
@@ -1309,9 +1313,9 @@ nav > div > button {
 }
 
 .tick {
-    position: absolute;
+    /*position: absolute;*/
     font: 14px sans-serif;
-    transform: translate(-50%, -50%);
+    /*transform: translate(-50%, -50%);*/
 }
 
 #white {

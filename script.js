@@ -3792,7 +3792,7 @@ const aggregate = (b) => {
 
 const aggregateWater = (b) => {
     if (b.start > new Date()) return null;
-    // Water is logged as a daily total, so every hour of the day has the same value
+    // Water is logged as a daily total
     if (period === DAY) return getValue('water', getDateKey(b.start));
     const values = pastDays(b.start, b.end)
         .map(d => getValue('water', getDateKey(d)))
@@ -4147,7 +4147,12 @@ const renderVBars = (
         })),
     );
 
-    if (!legend) legend = series.map((s) => ({label: s.label, color: s.color, kind: "rect"}))
+    if (!legend) {
+        legend = series.map((s) => ({label: s.label, color: s.color, kind: "rect"}));
+        if (normal != null) {
+            legend.push({label: S.norm, color: "--help", kind: "dash"});
+        }
+    }
     q.innerHTML = chartSvg(chart, zero + bars + normalLine(plot, y, normal)) + legendHtml(legend);
 };
 
@@ -4251,7 +4256,7 @@ const renderHeatmap = (id, matrix, max) => {
     if (!max) return empty(id);
     const q = $(id);
     const w = Math.max(260, q.clientWidth || 320);
-    const left = 36;
+    const left = 16;
     const cell = (w - left - 4) / 24;
     const ch = cell - 2; // square cell with a 2px gutter on both axes
     const h = 7 * (ch + 2) + 20;
@@ -4262,11 +4267,11 @@ const renderHeatmap = (id, matrix, max) => {
                     style="${v ? `fill:var(--accent);fill-opacity:${alpha}` : ""}" data-tip="${id}:${d * 24 + hr}"></rect>`;
     }).join("")).join("");
 
-    const rows = S.wds.map((w, d) =>
-        `<text class="tick" x="${left - 6}" y="${d * (ch + 2) + 13}" text-anchor="end">${w}</text>`,
+    const rows = [...S.Ws].map((w, d) =>
+        `<text class="tick" x="${left - 6}" y="${d * (ch + 2) + ch / 2}" dominant-baseline="middle" text-anchor="end">${w}</text>`,
     ).join("");
     const cols = [0, 6, 12, 18].map((hr) =>
-        `<text class="tick" x="${left + hr * cell}" y="${h - 4}" text-anchor="start">${hr}</text>`,
+        `<text class="tick" x="${left + hr * cell}" y="${h - 4}" dominant-baseline="auto" text-anchor="start">${hr}</text>`,
     ).join("");
 
     setTips(
@@ -4367,6 +4372,12 @@ const MEAL_COLORS = {
     [DINNER]: "--red",
 };
 const NUTRIENT_CHARTS = ["fiber", "sugar", "salt", "satFat"];
+const NUTRIENT_COLORS = {
+    fiber: "--green",
+    sugar: "--red",
+    salt: "--blue",
+    satFat: "--yellow",
+};
 
 const renderStats = () => {
     hideTip();
@@ -4391,7 +4402,7 @@ const renderStats = () => {
             ? null
             : average(pastDays(addDays(b.start, -6), b.end).map(dayCalories));
     const series = [
-        {values: calories, color: "--accent", label: S.calories},
+        {values: calories, color: "--accent", label: S.avg1},
         ...(period === WEEK
             ? [{values: buckets.map(weekAverage), color: "--green", label: S.avg7, thin: true}]
             : []),
@@ -4451,15 +4462,15 @@ const renderStats = () => {
     );
 
     /* 5. Water */
-    const water = buckets.map(aggregateWater);
-    renderLine(
-        "water-chart", buckets, [
-            {
-                values: water,
-                color: "--blue",
-                label: S.water,
-            },
-        ], {value: person.targets.water}, false, S.ml
+    const water = dayBuckets.map(aggregateWater);
+    renderVBars(
+        "water-chart",
+        dayBuckets,
+        [{values: water, color: "--blue", label: S.water}],
+        person.targets.water,
+        S.ml,
+        0,
+        140,
     );
 
     /* 6. Calories by tags */
@@ -4514,8 +4525,8 @@ const renderStats = () => {
         "health-chart",
         buckets,
         [{values: field("health"), color: "--green", label: S.healthScore}],
-        healthAvg,
-        S.average,
+        {value: healthAvg, label: S.average},
+        false,
     );
     setChartValue("health-chart", healthAvg == null ? "" : fmt(healthAvg));
 
@@ -4533,21 +4544,23 @@ const renderStats = () => {
     );
 
     /* 10. Fiber, sugar, salt, saturated fats */
-    NUTRIENT_CHARTS.forEach((k) => {
-        const pct = nutrientMode === "pct";
-        const values = field(k).map((v) =>
+    const pct = nutrientMode === "pct";
+    const nutrientSeries = NUTRIENT_CHARTS.map((k) => ({
+        values: field(k).map((v) =>
             v == null ? null : pct ? (v / g[k]) * 100 : v,
-        );
-        renderVBars(
-            `nutrient-${k}`,
-            buckets,
-            [{values, color: "--green", label: S[k]}],
-            period !== DAY ? (pct ? 100 : g[k]) : null,
-            pct ? "%" : S.g,
-            pct ? 0 : 1,
-            120
-        );
-    });
+        ),
+        color: NUTRIENT_COLORS[k],
+        label: S[k],
+    }));
+    renderLine(
+        "nutrient-chart",
+        buckets,
+        nutrientSeries,
+        pct && period !== DAY ? {value: 100, label: S.norm} : {},
+        false,
+        pct ? "%" : S.g,
+        pct ? 0 : 1,
+    );
 
     /* 11. Weight */
     const weights = buckets.map((b) => {

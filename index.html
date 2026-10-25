@@ -512,30 +512,40 @@
 </div>
 
 <div id="portion-sheet" class="sheet" role="dialog" aria-modal="true" data-i18n-aria-label="portion">
-    <h3 id="portion-title" class="center"></h3>
+    <header class="portion-header">
+        <h3 id="portion-title"></h3>
+        <button id="portion-close" class="icon-button" data-i18n-aria-label="close">
+            <svg class="tool">
+                <use href="sprite.svg#close"></use>
+            </svg>
+        </button>
+    </header>
     <div class="big-field">
         <input id="portion-grams" class="mono" inputmode="numeric" autocomplete="off" data-i18n-aria-label="grams">
         <span data-i18n="g"></span>
     </div>
     <div id="portion-quick" class="center">
-        <button id="portion-minus" class="pad-10" data-i18n-aria-label="minus">
+        <button id="portion-minus" data-i18n-aria-label="minus">
             <svg>
                 <use href="sprite.svg#minus"></use>
             </svg>
         </button>
-        <button id="portion-plus" class="pad-10" data-i18n-aria-label="plus">
+        <button id="portion-plus" data-i18n-aria-label="plus">
             <svg>
                 <use href="sprite.svg#plus"></use>
             </svg>
         </button>
     </div>
+    <div id="portion-step" class="small help center"></div>
     <div id="portion-info" class="col gap-10"></div>
+    <div id="portion-actions" class="chips center">
+        <button id="portion-replace" class="tap chip" data-i18n="replace"></button>
+        <button id="portion-create" class="tap chip green" data-i18n="create"></button>
+        <button id="portion-delete" class="tap chip red" data-i18n="delete"></button>
+    </div>
+    <button id="portion-confirm-item" class="tap wide" data-i18n="confirmItem"></button>
     <footer>
-        <button id="portion-replace" class="pad-10 help" data-i18n="replace"></button>
-        <button id="portion-create" class="pad-10 green" data-i18n="create"></button>
-        <button id="portion-delete" class="pad-10 red" data-i18n="delete"></button>
-        <button id="portion-confirm-item" class="wide" data-i18n="confirmItem"></button>
-        <button id="portion-confirm" class="accent right" data-i18n="save"></button>
+        <button id="portion-confirm" class="accent" data-i18n="save"></button>
     </footer>
 </div>
 

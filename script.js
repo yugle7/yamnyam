@@ -385,15 +385,6 @@ const updatePerson = () => {
     person.goals = goals;
 };
 
-const getMorningWeight = (weights) => {
-    let weight = null;
-    for (const q of weights) {
-        if (new Date(q.date).getHours() >= 12) return weight || q.value;
-        weight = q.value;
-    }
-    return weight;
-};
-
 const linearRegression = (points) => {
     const n = points.length;
     if (n < 2) return null;
@@ -4327,7 +4318,14 @@ window.addEventListener("scroll", hideTip, {passive: true});
 
 const setChartValue = (id, text) => {
     const q = $(id).closest(".card").querySelector(".value");
-    if (q) q.textContent = text ? `${text}` : "";
+    if (q) q.textContent = text || "";
+};
+
+const setDayAverage = (id, value, unit, decimals = 0) => {
+    setChartValue(
+        id,
+        value == null ? "" : `${fmt(value, decimals)} ${unit} / ${S.dayShort}`,
+    );
 };
 
 const average = (values) => {
@@ -4382,7 +4380,6 @@ const renderStats = () => {
     const [start, end] = getRange(currentDate, period);
     const buckets = getBuckets(start, end, period);
     const sums = buckets.map(aggregate);
-    const g = person.goals;
     const days = pastDays(start, end);
     const logged = days.filter((d) => getMeals(getDateKey(d)).length);
     const rangeMeals = meals.filter(
@@ -4405,15 +4402,10 @@ const renderStats = () => {
             ? [{values: buckets.map(weekAverage), color: "--green", label: S.sevenDaysAverage, thin: true}]
             : []),
     ];
-    renderLine("calories-chart", buckets, series, {value: g.calories, label: S.target}, false, S.kcal);
+    renderLine("calories-chart", buckets, series, {value: person.goals.calories, label: S.target}, false, S.kcal);
 
     const averageCalories = average(logged.map(dayCalories));
-    setChartValue(
-        "calories-chart",
-        averageCalories == null
-            ? ""
-            : `${fmt(averageCalories)} ${S.kcal} / ${S.dayShort}`,
-    );
+    setDayAverage("calories-chart", averageCalories, S.kcal);
 
     /* PFC */
     const macroKeys = ["protein", "fat", "carbs"];
@@ -4421,8 +4413,11 @@ const renderStats = () => {
         "macros-chart", buckets, macroKeys, sums,
         MACRO_COLORS, {protein: S.protein, fat: S.fat, carbs: S.carbs}, S.g
     );
+    const macroDays = logged
+        .map((d) => sumMeals(getDateKey(d)))
+        .filter(Boolean);
     const macroAverages = macroKeys.map((k) =>
-        average(logged.map((d) => sumMeals(getDateKey(d))?.[k])),
+        average(macroDays.map((day) => day[k])),
     );
     const macroText = macroKeys
         .map((k, i) => `${S[k][0]} ${fmt(macroAverages[i])}`)
@@ -4431,7 +4426,7 @@ const renderStats = () => {
 
     /* PFC imbalance */
     const daySums = dayBuckets.map(aggregateDays);
-    const imbalance = daySums.map((s) => (s ? macroImbalance(s, g) : null));
+    const imbalance = daySums.map((s) => (s ? macroImbalance(s, person.goals) : null));
     renderLine(
         "balance-chart",
         dayBuckets,
@@ -4451,16 +4446,21 @@ const renderStats = () => {
         "meal-type-chart", buckets, MEAL_TYPES, sums,
         MEAL_COLORS, S.mealTypes, S.kcal
     );
-    const mealTotals = Object.fromEntries(MEAL_TYPES.map((t) => [t, 0]));
-    rangeMeals.forEach((m) => {
-        mealTotals[m.type] += sumItems(m.items)?.calories || 0;
+    const mealCalories = Object.fromEntries(MEAL_TYPES.map((type) => [type, 0]));
+    rangeMeals.forEach((meal) => {
+        mealCalories[meal.type] += sumItems(meal.items)?.calories || 0;
     });
-    const mealTotal = Object.values(mealTotals).reduce((sum, v) => sum + v, 0);
-    const mealStats = MEAL_TYPES
-        .filter((t) => mealTotals[t] > 0)
-        .map((t) => `${S.mealTypes[t][0]} ${fmt((mealTotals[t] / mealTotal) * 100)}`)
+    const totalMealCalories = Object.values(mealCalories).reduce(
+        (sum, value) => sum + value,
+        0,
+    );
+    const mealShares = MEAL_TYPES
+        .filter((type) => mealCalories[type] > 0)
+        .map((type) =>
+            `${S.mealTypes[type][0]} ${fmt((mealCalories[type] / totalMealCalories) * 100)}`,
+        )
         .join(" · ");
-    setChartValue("meal-type-chart", mealTotal ? mealStats + ' %' : "");
+    setChartValue("meal-type-chart", totalMealCalories ? `${mealShares} %` : "");
 
     /* Water */
     const water = dayBuckets.map(aggregateWater);
@@ -4474,7 +4474,7 @@ const renderStats = () => {
         140,
     );
     const averageWater = average(water.filter((v) => v > 0));
-    setChartValue("water-chart", averageWater == null ? "" : `${fmt(averageWater)} ${S.ml} / ${S.dayShort}`);
+    setDayAverage("water-chart", averageWater, S.ml);
 
     /* Health score */
     const allItems = rangeMeals.flatMap((m) => m.items);
@@ -4508,7 +4508,7 @@ const renderStats = () => {
     const pct = nutrientMode === "pct";
     const nutrientSeries = NUTRIENT_CHARTS.map((k) => ({
         values: field(k).map((v) =>
-            v == null ? null : pct ? (v / g[k]) * 100 : v,
+            v == null ? null : pct ? (v / person.goals[k]) * 100 : v,
         ),
         color: NUTRIENT_COLORS[k],
         label: S[k],
@@ -4522,18 +4522,18 @@ const renderStats = () => {
         pct ? "%" : S.g,
         pct ? 0 : 1,
     );
-    const digits = pct ? 0 : 1;
-    const unit = pct ? "%" : S.g;
+    const nutrientUnit = pct ? "%" : S.g;
     const nutrientStats = nutrientSeries
-        .map((s) => {
-            const avg = average(s.values);
-            return avg == null
-                ? ""
-                : `${s.label[0]} ${fmt(avg, 0)}`;
+        .map((nutrient) => {
+            const avg = average(nutrient.values);
+            return avg == null ? "" : `${nutrient.label[0]} ${fmt(avg)}`;
         })
         .filter(Boolean)
         .join(" · ");
-    setChartValue("nutrient-chart", nutrientStats + ' ' + unit);
+    setChartValue(
+        "nutrient-chart",
+        nutrientStats ? `${nutrientStats} ${nutrientUnit}` : "",
+    );
 
     /* Weight */
     const weights = buckets.map((b) => {
@@ -4577,17 +4577,11 @@ const renderStats = () => {
         1,
     );
     const known = weights.filter((v) => v != null);
-    const averageWeight = average(known);
     const weightChange = known.length >= 2 ? known.at(-1) - known[0] : null;
     const changeText = weightChange == null
         ? ""
         : `${weightChange > 0 ? "+" : ""}${fmt(weightChange, 1)} ${S.kg}`;
-    setChartValue(
-        "weight-chart",
-        averageWeight == null
-            ? ""
-            : changeText,
-    );
+    setChartValue("weight-chart", changeText);
 
     /* Sleep */
     const sleep = dayBuckets.map((b) => averageLog("sleep", b));
@@ -4601,12 +4595,7 @@ const renderStats = () => {
         140,
     );
     const averageSleep = average(sleep);
-    setChartValue(
-        "sleep-chart",
-        averageSleep == null
-            ? ""
-            : `${fmt(averageSleep, 1)} ${S.h} / ${S.dayShort}`,
-    );
+    setDayAverage("sleep-chart", averageSleep, S.h, 1);
 
     /* Steps */
     const steps = dayBuckets.map((b) => averageLog("steps", b));
@@ -4620,10 +4609,7 @@ const renderStats = () => {
         140,
     );
     const averageSteps = average(steps);
-    setChartValue(
-        "steps-chart",
-        averageSteps == null ? "" : `${fmt(averageSteps)} ${S.st} / ${S.dayShort}`,
-    );
+    setDayAverage("steps-chart", averageSteps, S.st);
 
     /* Rhythm */
     const matrix = Array.from({length: 7}, () => Array(24).fill(0));

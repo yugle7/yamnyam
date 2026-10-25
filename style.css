@@ -1209,6 +1209,14 @@ nav > div > button {
     height: 85dvh;
 }
 
+.sheet.full {
+    height: 100dvh;
+    max-height: 100dvh;
+    padding-top: max(20px, env(safe-area-inset-top));
+    border-top: 0;
+    border-radius: 0;
+}
+
 .sheet-scroll {
     flex: 1;
     min-height: 0;

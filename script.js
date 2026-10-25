@@ -2116,16 +2116,11 @@ const macrosText = (n, g = 1) =>
 const itemHtml = (item, i) => {
     const n = item.nutrition;
     const g = item.grams / 100;
-    const dot =
-        item.source === "parse"
-            ? `<span class="dot" style="--dot:var(${dotColor(item)})"></span>`
-            : "";
     const info = n
         ? `<span class="help right">${macrosText(n, g)}</span>`
         : `<span class="red">${S.notFound}</span>`;
     return `<div class="card-item ${isProblem(item) ? "bad" : ""}" data-i="${i}" role="button" tabindex="0">
         <div class="row gap-10">
-            ${dot}
             <div class="name">${clean(item.name)}</div>
             <div class="grams mono">${item.grams} ${S.g}</div>
         </div>

@@ -1010,13 +1010,14 @@ const write = (key, value) => {
 
 const invalidate = () => {
     calendarPages = {};
-    mealsIndex = null;
 };
+
+const sortMeals = () => meals.sort((a, b) => a.eaten - b.eaten);
 
 const saveMeals = () => {
     invalidate();
     write("meals", meals);
-    updateMealsIndex();
+    sortMeals();
 };
 
 const saveFoods = () => write("foods", foods);
@@ -1060,7 +1061,7 @@ const loadPerson = () => {
 
 const loadMeals = () => {
     meals = read("meals", []).filter(Boolean);
-    updateMealsIndex();
+    sortMeals();
 };
 
 const loadFoods = () => {
@@ -1594,11 +1595,13 @@ const getCalendarPage = (delta = 0) => {
     const last = new Date(y, m + 1, 0).getDate();
     const todayKey = getDateKey(today);
     const dateKey = getDateKey(date);
+    let normDays = 0;
 
     const dayHtml = (n) => {
         const key = getDateKey(new Date(y, m, n));
         const s = sumMeals(key);
         const color = key > todayKey ? "--help" : "--text";
+        if (inNorm(key)) normDays++;
         return `<button><span style="color: var(${color})" class="${key === dateKey ? "big" : ""}">${n}</span>${getMarkHtml(s)}</button>`;
     };
 
@@ -1615,7 +1618,8 @@ const getCalendarPage = (delta = 0) => {
             <span class="big">${S.months[m]} ${y}</span>
             <button class="next" aria-label="${S.next}"><svg><use href="sprite.svg#next"></use></svg></button>
         </h2>
-        <div class="days">${days}</div>`;
+        <div class="days">${days}</div>
+        <div class="calendar-norm small help center">${S.calendarNorm(normDays)}</div>`;
 
     calendarPages[k] = dst;
     return dst;
@@ -2196,18 +2200,6 @@ const renderCta = () => {
 
 const stripFragment = ({fragment, ...item}) => item;
 
-let mealsIndex = null;
-
-const updateMealsIndex = () => {
-    if (mealsIndex) return;
-
-    mealsIndex = new Map();
-    meals = meals.sort((a, b) => a.eaten - b.eaten);
-    meals.forEach((m) => {
-        if (!mealsIndex.has(m.key)) mealsIndex.set(m.key, []);
-        mealsIndex.get(m.key).push(m);
-    });
-};
 const saveMeal = () => {
     meal.items = meal.items.map(stripFragment);
     meal.tags = [...mealTags];
@@ -2464,9 +2456,9 @@ const openPortion = (i) => {
     portionConfirmItem.classList.toggle(
         "hidden",
         !exists ||
-            item.source !== "parse" ||
-            item.confidence >= 0.8 ||
-            item.confirmed,
+        item.source !== "parse" ||
+        item.confidence >= 0.8 ||
+        item.confirmed,
     );
 
     renderPortionInfo();
@@ -2787,16 +2779,16 @@ const CUSTOM_ID_START = 1000000;
 const nextFoodId = () => Math.max(CUSTOM_ID_START - 1, ...foods.map((f) => f.id)) + 1;
 
 const DISH_LIMITS = {
-    calories: [900, 1],
-    protein: [100, 1],
-    fat: [100, 1],
-    carbs: [100, 1],
-    fiber: [100, 1],
-    sugar: [100, 1],
-    salt: [100, 2],
-    satFat: [100, 1],
-    transFat: [100, 1],
-    freeSugar: [100, 1],
+    calories: {max: 900, decimals: 1},
+    protein: {max: 100, decimals: 1},
+    fat: {max: 100, decimals: 1},
+    carbs: {max: 100, decimals: 1},
+    fiber: {max: 100, decimals: 1},
+    sugar: {max: 100, decimals: 1},
+    salt: {max: 100, decimals: 2},
+    satFat: {max: 100, decimals: 1},
+    transFat: {max: 100, decimals: 1},
+    freeSugar: {max: 100, decimals: 1},
 };
 const PREFILLED = ["fiber", "sugar", "salt", "satFat"];
 
@@ -2827,7 +2819,7 @@ const openDishPage = ({food = null, name = "", action}) => {
 
     dishName.value = food ? food[lang] : name;
     Object.entries(dishInputs).forEach(([k, input]) => {
-        input.value = food ? fmt(food.nutrition[k], DISH_LIMITS[k][1]) : "";
+        input.value = food ? fmt(food.nutrition[k], DISH_LIMITS[k].decimals) : "";
         delete input.dataset.auto;
     });
     dishServing.value = food ? String(food.servingGrams) : "";
@@ -2904,7 +2896,7 @@ const matchRef = () => {
         const f = match.food;
         prefill(dishServing, f.servingGrams, 0);
         PREFILLED.forEach((k) =>
-            prefill(dishInputs[k], f.nutrition[k], DISH_LIMITS[k][1]),
+            prefill(dishInputs[k], f.nutrition[k], DISH_LIMITS[k].decimals),
         );
     }
     updateDish();
@@ -2922,7 +2914,7 @@ dishName.addEventListener("input", () => {
 });
 
 Object.entries(dishInputs).forEach(([k, input]) => {
-    const [max, decimals] = DISH_LIMITS[k];
+    const {max, decimals} = DISH_LIMITS[k];
     maskNumber(input, max, decimals);
     input.addEventListener("input", () => {
         delete input.dataset.auto;
@@ -2988,7 +2980,7 @@ const updateDish = () => {
 
     if (dish.kind === "recipe") {
         Object.entries(dishInputs).forEach(([k, input]) => {
-            input.value = fmt(dst.nutrition[k], DISH_LIMITS[k][1]);
+            input.value = fmt(dst.nutrition[k], DISH_LIMITS[k].decimals);
         });
         ingredientsTotal.textContent = dst.recipe.grams
             ? `${fmt(dst.grams)} ${S.g} · ${macrosText(dst.nutrition, 1)}`
@@ -3246,7 +3238,7 @@ const renderDayRings = () => {
             kind: "calories",
             target: g.calories,
             delta: s.calories,
-            value: s.calories,
+            value: round(s.calories),
             label: S.calories,
             unit: S.kcal,
             color: "--red",
@@ -3255,16 +3247,16 @@ const renderDayRings = () => {
             kind: "protein",
             target: g.protein,
             delta: s.protein,
-            value: s.protein,
+            value: round(s.protein),
             label: S.protein,
             unit: S.g,
-            color: "--yellow",
+            color: "--blue",
         },
         {
             kind: "fat",
             target: g.fat,
             delta: s.fat,
-            value: s.fat,
+            value: round(s.fat),
             label: S.fat,
             unit: S.g,
             color: "--yellow",
@@ -3273,10 +3265,10 @@ const renderDayRings = () => {
             kind: "carbs",
             target: g.carbs,
             delta: s.carbs,
-            value: s.carbs,
+            value: round(s.carbs),
             label: S.carbs,
             unit: S.g,
-            color: "--yellow",
+            color: "--green",
         },
     ]
         .map(ringHtml)
@@ -3801,27 +3793,6 @@ const inNorm = (key) => {
     return ratio >= 0.8 && ratio <= 1.1;
 };
 
-const getStreaks = () => {
-    const keys = [...mealsIndex.keys()];
-    if (!keys.length) return {current: 0, best: 0};
-    const first = startOfDay(
-        Math.min(...getMeals(Math.min(...keys)).map((m) => m.eaten)),
-    );
-    let best = 0;
-    let run = 0;
-    for (let d = first; d <= today; d = addDays(d, 1)) {
-        run = inNorm(getDateKey(d)) ? run + 1 : 0;
-        best = Math.max(best, run);
-    }
-    let current = 0;
-    let d = inNorm(getDateKey(new Date())) ? new Date() : addDays(new Date(), -1);
-    while (inNorm(getDateKey(d))) {
-        current++;
-        d = addDays(d, -1);
-    }
-    return {current, best};
-};
-
 // ==========================================================================
 // 25. STATISTICS: UNIVERSAL RENDERERS (SVG)
 // ==========================================================================
@@ -4207,14 +4178,6 @@ const renderVBars = (
     q.innerHTML = chartSvg(chart, zero + bars + normalLine(plot, y, normal)) + legendHtml(legend);
 };
 
-const renderKPI = (id, value, record) => {
-    if (value == null) return empty(id);
-    $(id).innerHTML = `<div class="kpi">
-        <div class="kpi-value">${value}</div>
-        <div class="small help">${record}</div>
-    </div>`;
-};
-
 const renderHeatmap = (id, matrix, max) => {
     if (!max) return empty(id);
     const q = $(id);
@@ -4483,22 +4446,6 @@ const renderStats = () => {
         false,
     );
     setChartValue("health-chart", averageHealth == null ? "" : fmt(averageHealth));
-
-    /* Streak */
-    const normDays = logged.filter((d) => inNorm(getDateKey(d))).length;
-    const totalDays = logged.length;
-    const streak = getStreaks();
-    renderKPI(
-        "streak-chart",
-        totalDays
-            ? `${fmt((normDays / totalDays) * 100)}%`
-            : null,
-        S.streakRecord(streak.current, streak.best),
-    );
-    setChartValue(
-        "streak-chart",
-        totalDays ? S.streakDays(streak.current) : "",
-    );
 
     /* Nutrients */
     const pct = nutrientMode === "pct";

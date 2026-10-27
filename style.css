@@ -858,7 +858,11 @@ nav > div > button {
 }
 
 .calendar {
-    height: 360px;
+    height: 400px;
+}
+
+.calendar-norm {
+    padding-top: 4px;
 }
 
 #calendars {
@@ -1772,19 +1776,6 @@ h2.group {
 
 .tip-row span {
     color: var(--help);
-}
-
-/* KPI */
-.kpi {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.kpi-value {
-    font-size: 48px;
-    font-weight: 600;
-    line-height: 1.1;
 }
 
 /* Горизонтальные списки */

@@ -191,6 +191,8 @@ window.TRANSLATIONS = {
         dayShort: "день",
         noData: "Нет данных за период",
         norm: "Норма",
+        calendarNorm: (days) =>
+            `${days} ${ruPlural(days, "день", "дня", "дней")} в норме`,
         fact: "Величина",
         sevenDaysAverage: "Среднее за 7 дней",
         consumed: "Получено",
@@ -204,10 +206,6 @@ window.TRANSLATIONS = {
         mealsCount: "Приемов в день",
         avgKcal: "Калорий в день",
         healthScore: "Полезность",
-        streakRecord: (current, best) =>
-            `Рекорд: ${best} ${ruDays(best)}`,
-        streakDays: (days) =>
-            `${days} ${ruPlural(days, "день", "дня", "дней")}`,
         sleepHours: "Сон, ч",
         steps: "Шаги",
         overview: "Обзор",
@@ -224,7 +222,6 @@ window.TRANSLATIONS = {
         weekday: "По дням недели",
         whatTime: "Во сколько",
         health: "Полезность",
-        streak: "В норме",
         nutrients: "Нутриенты",
         triggers: "Триггеры",
         heatmap: "Часы × дни недели",
@@ -459,6 +456,8 @@ window.TRANSLATIONS = {
         dayShort: "day",
         noData: "No data for the period",
         norm: "Goal",
+        calendarNorm: (days) =>
+            `${days} ${days === 1 ? "day" : "days"} in norm`,
         fact: "Actual",
         sevenDaysAverage: "7-day average",
         trend: "Trend",
@@ -471,11 +470,6 @@ window.TRANSLATIONS = {
         mealsCount: "Meals per day",
         avgKcal: "Calories per day",
         healthScore: "Health score",
-        daysInNorm: (norm, total) =>
-            `${norm} of ${total} ${total === 1 ? "day" : "days"} in norm`,
-        streakRecord: (current, best) =>
-            `Streak: ${current} ${current === 1 ? "day" : "days"} · best: ${best} ${best === 1 ? "day" : "days"}`,
-        streakDays: (days) => `${days} ${days === 1 ? "day" : "days"}`,
         sleepHours: "Sleep, h",
         steps: "Steps",
         overview: "Overview",
@@ -493,7 +487,6 @@ window.TRANSLATIONS = {
         mealType: "Calories by meal",
         tagsKcal: "Calories by tag",
         weekday: "By day of week",
-        streak: "Calorie goal consistency",
         nutrients: "Fiber, sugar, salt, saturated fat",
         triggers: "Triggers",
         heatmap: "Hours × days of week",

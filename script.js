@@ -59,7 +59,6 @@ const DINNER = 3;
 
 const DAY = 0;
 const WEEK = 1;
-const MONTH = 2;
 
 const MAX_GRAMS = 5000;
 const DEFAULT_SERVING = 100;
@@ -2044,12 +2043,6 @@ const frequentPicks = () => {
 
 /* --- Items --- */
 
-const dotColor = (item) => {
-    if (isProblem(item)) return "--red";
-    if (item.confirmed || item.confidence >= 0.8) return "--green";
-    return "--yellow";
-};
-
 const macrosText = (n, g = 1) =>
     `${fmt(n.calories * g)} ${S.kcal} · ${S.protein[0]} ${fmt(n.protein * g)} · ${S.fat[0]} ${fmt(n.fat * g)} · ${S.carbs[0]} ${fmt(n.carbs * g)}`;
 
@@ -2225,11 +2218,10 @@ const renderSearchTabs = () => {
 };
 
 const searchActiveFoods = () => {
-    if (searchContext.quick) {
-        if (searchTab === "recent") return recentPicks().map((p) => p.food);
-        if (searchTab === "frequent") return frequentPicks().map((p) => p.food);
-        return getActiveFoods().filter((f) => favorites.includes(f.id));
-    }
+    if (searchContext.quick && searchTab === "recent")
+        return recentPicks().map((p) => p.food);
+    if (searchContext.quick && searchTab === "frequent")
+        return frequentPicks().map((p) => p.food);
 
     let dst = getActiveFoods();
     if (searchTab === "favorites") {
@@ -2310,7 +2302,7 @@ const toggleFavorite = (id) => {
 };
 
 const pickFood = (food) => {
-    const {type, index} = searchContext;
+    const {type} = searchContext;
     closeSheet();
 
     if (type === "ingredient") {
@@ -2322,23 +2314,15 @@ const pickFood = (food) => {
         return updateDish();
     }
 
-    if (type === "replace") {
-        const old = meal.items[index];
-        meal.items[index] = {
-            ...makeItem(food, old.grams, "search"),
-            fragment: old.fragment,
-        };
-    } else {
-        const source = searchTab === "favorites"
-            ? "favorite"
-            : searchContext.quick ? searchTab : "search";
-        const grams = searchContext.quick && searchTab === "recent"
-            ? recentPicks().find((p) => p.food.id === food.id)?.grams
-            : null;
-        meal.items.push(
-            makeItem(food, grams ?? food.servingGrams ?? DEFAULT_SERVING, source),
-        );
-    }
+    const source = searchTab === "favorites"
+        ? "favorite"
+        : searchContext.quick ? searchTab : "search";
+    const grams = searchContext.quick && searchTab === "recent"
+        ? recentPicks().find((p) => p.food.id === food.id)?.grams
+        : null;
+    meal.items.push(
+        makeItem(food, grams ?? food.servingGrams ?? DEFAULT_SERVING, source),
+    );
     renderItems();
 };
 
@@ -3950,49 +3934,6 @@ const stackedLegend = (keys, labels, colors) =>
     legendHtml(
         keys.map((k) => ({label: labels[k], color: colors[k], kind: "rect"})),
     );
-
-const renderBarStacked = (
-    id,
-    buckets,
-    keys,
-    data,
-    colors,
-    labels,
-    unit = ""
-) => {
-    const totals = stackedTotals(data, keys);
-    if (!totals.some((v) => v > 0)) return empty(id);
-
-    const scale = scaleY(0, Math.max(...totals) * 1.08);
-    const chart = chartFrame(id, CHART_HEIGHT, buckets, scale);
-    const {q, x, y, slot} = chart;
-    const bw = Math.min(16, slot * 0.6);
-
-    const bars = data
-        .map((row, i) => {
-            if (!row) return "";
-            let acc = 0;
-            const parts = keys
-                .map((k) => ({k, v: row[k] || 0}))
-                .filter((p) => p.v > 0);
-            return parts
-                .map((p, j) => {
-                    const top = y(acc + p.v);
-                    const bottom = y(acc);
-                    acc += p.v;
-                    const height = Math.max(0, bottom - top - (j > 0 ? 2 : 0));
-                    const x0 = x(i) - bw / 2;
-                    return j === parts.length - 1
-                        ? `<path d="${barPath(x0, top, bw, height)}" style="fill:var(${colors[p.k]})"></path>`
-                        : `<rect x="${x0}" y="${top}" width="${bw}" height="${height}" style="fill:var(${colors[p.k]})"></rect>`;
-                })
-                .join("");
-        })
-        .join("");
-
-    setStackedTips(id, buckets, keys, data, colors, labels, unit);
-    q.innerHTML = chartSvg(chart, bars) + stackedLegend(keys, labels, colors);
-};
 
 const renderAreaStacked = (
     id,

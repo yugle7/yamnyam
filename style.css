@@ -235,6 +235,10 @@ body:not(.photos) .needs-photos {
     padding-left: 20px;
 }
 
+.top-10 {
+    padding-top: 10px;
+}
+
 .top-20 {
     padding-top: 20px;
 }

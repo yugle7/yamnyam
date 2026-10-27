@@ -2073,8 +2073,8 @@ const renderItems = () => {
     const s = sumItems(meal.items);
     mealItems.innerHTML =
         meal.items.map(itemHtml).join("") +
-        (meal.items.length
-            ? `<div class="total small mono">${macrosText(s)}</div>`
+        (meal.items.length > 1
+            ? `<div class="total small mono top-10">${macrosText(s)}</div>`
             : "");
     renderCta();
 };

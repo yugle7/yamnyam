@@ -1270,6 +1270,26 @@ nav > div > button {
     padding-right: 0;
 }
 
+#portion-quick {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: auto;
+}
+
+#portion-quick button {
+    padding: 10px;
+}
+
+#portion-confirm-item {
+    padding: 10px;
+}
+
+#portion-sheet footer button {
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
 /* Теги */
 #tag-actions {
     padding: 0 0 10px;

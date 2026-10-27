@@ -790,7 +790,6 @@ const iconSearch = $("icon-search");
 const iconStar = $("icon-star");
 const photoInput = $("photo-input");
 const mealPhoto = $("meal-photo");
-const quickPicks = $("quick-picks");
 const mealItems = $("meal-items");
 const tagButtons = $("tag-buttons");
 const editTagsButton = $("edit-tags");
@@ -857,8 +856,6 @@ const portionTitle = $("portion-title");
 const portionGrams = $("portion-grams");
 const portionMinus = $("portion-minus");
 const portionPlus = $("portion-plus");
-const portionInfo = $("portion-info");
-const portionReplace = $("portion-replace");
 const portionCreate = $("portion-create");
 const portionDelete = $("portion-delete");
 const portionConfirmItem = $("portion-confirm-item");
@@ -1519,19 +1516,6 @@ const onSegment = (segment, attr, callback) => {
     });
 };
 
-const segmentHtml = (attr, options, value) => {
-    const i = Math.max(
-        0,
-        options.findIndex((o) => String(o.value) === String(value)),
-    );
-    return `<div class="segment" style="--n:${options.length};--i:${i}">${options
-        .map(
-            (o, j) =>
-                `<button data-${attr}="${o.value}" class="${j === i ? "active" : ""}">${clean(o.label)}</button>`,
-        )
-        .join("")}</div>`;
-};
-
 const healthBar = (score) =>
     score == null
         ? ""
@@ -1874,7 +1858,6 @@ let meal = null;
 let mealTags = new Set();
 let originalPhotoId = null;
 let addedPhotos = [];
-let quickTab = "recent";
 let typeTouched = false;
 
 const autoType = (eaten) => {
@@ -1905,7 +1888,6 @@ const openMeal = (m, isNew) => {
     mealTags = new Set(meal.tags);
     originalPhotoId = meal.photoId;
     addedPhotos = [];
-    quickTab = "recent";
     typeTouched = !isNew;
 
     mealText.value = "";
@@ -1928,7 +1910,6 @@ const renderMealHeader = () => {
 const renderMeal = () => {
     renderMealHeader();
     renderPhoto(mealPhoto, meal.photoId);
-    renderQuickPicks();
     renderItems();
     renderMealTags();
 };
@@ -2043,7 +2024,7 @@ mealPhoto.onclick = (e) => {
     renderPhoto(mealPhoto, null);
 };
 
-/* --- Quick picks --- */
+/* --- Quick search lists --- */
 
 const recentPicks = () =>
     recents
@@ -2061,49 +2042,7 @@ const frequentPicks = () => {
         .map((food) => ({food, grams: food.servingGrams || DEFAULT_SERVING}));
 };
 
-const renderQuickPicks = () => {
-    const lists = {recent: recentPicks(), frequent: frequentPicks()};
-    quickPicks.classList.toggle(
-        "hidden",
-        !lists.recent.length && !lists.frequent.length,
-    );
-    if (!lists[quickTab].length) {
-        quickTab = lists.recent.length ? "recent" : "frequent";
-    }
-
-    quickPicks.innerHTML =
-        segmentHtml(
-            "tab",
-            [
-                {value: "recent", label: S.recent},
-                {value: "frequent", label: S.frequent},
-            ],
-            quickTab,
-        ) +
-        `<div class="chips">${lists[quickTab]
-            .map(({food, grams}) =>
-                `<button class="tap chip" data-id="${food.id}" data-grams="${grams}">${clean(food[lang])}
-                <span class="help mono">${grams} ${S.g}</span></button>`)
-            .join("")}
-        </div>`;
-};
-
-quickPicks.onclick = (e) => {
-    const button = e.target.closest("button");
-    if (!button) return;
-    if (button.dataset.tab) {
-        quickTab = button.dataset.tab;
-        return renderQuickPicks();
-    }
-    addItem(findFood(+button.dataset.id), +button.dataset.grams, quickTab);
-};
-
 /* --- Items --- */
-
-const addItem = (food, grams, source) => {
-    meal.items.push(makeItem(food, grams, source));
-    renderItems();
-};
 
 const dotColor = (item) => {
     if (isProblem(item)) return "--red";
@@ -2252,6 +2191,7 @@ let searchContext = {type: "meal"};
 let searchTab = "all";
 
 const SEARCH_TABS = ["all", "product", "dish", "recipe", "favorites"];
+const QUICK_TABS = ["recent", "frequent", "favorites"];
 
 const openSearch = (type, options = {}) => {
     searchContext = {type, ...options};
@@ -2264,13 +2204,33 @@ const openSearch = (type, options = {}) => {
     setTimeout(() => searchInput.focus(), 250);
 };
 
+const openQuickPicks = () => {
+    const tab = recentPicks().length
+        ? "recent"
+        : frequentPicks().length
+          ? "frequent"
+          : "favorites";
+    openSearch("meal", {tab, quick: true});
+};
+
 const renderSearchTabs = () => {
-    searchTabs.innerHTML = SEARCH_TABS.map((tab) =>
-        `<button class="tap chip ${tab === searchTab ? "selected" : ""}" data-tab="${tab}">${S.searchTabs[tab]}</button>`,
-    ).join("");
+    const quick = searchContext.quick;
+    const tabs = quick ? QUICK_TABS : SEARCH_TABS;
+    searchTabs.innerHTML = tabs
+        .map((tab) => {
+            const label = quick ? S[tab] : S.searchTabs[tab];
+            return `<button class="tap chip ${tab === searchTab ? "selected" : ""}" data-tab="${tab}">${label}</button>`;
+        })
+        .join("");
 };
 
 const searchActiveFoods = () => {
+    if (searchContext.quick) {
+        if (searchTab === "recent") return recentPicks().map((p) => p.food);
+        if (searchTab === "frequent") return frequentPicks().map((p) => p.food);
+        return getActiveFoods().filter((f) => favorites.includes(f.id));
+    }
+
     let dst = getActiveFoods();
     if (searchTab === "favorites") {
         dst = dst.filter((f) => favorites.includes(f.id));
@@ -2286,6 +2246,9 @@ const searchActiveFoods = () => {
 const searchFoods = (query) => {
     const dst = searchActiveFoods();
     if (!query.trim()) {
+        if (searchContext.quick && searchTab !== "favorites") {
+            return dst.slice(0, 50);
+        }
         return dst
             .sort((a, b) => a[lang].localeCompare(b[lang], S.locale))
             .slice(0, 50);
@@ -2366,12 +2329,14 @@ const pickFood = (food) => {
             fragment: old.fragment,
         };
     } else {
+        const source = searchTab === "favorites"
+            ? "favorite"
+            : searchContext.quick ? searchTab : "search";
+        const grams = searchContext.quick && searchTab === "recent"
+            ? recentPicks().find((p) => p.food.id === food.id)?.grams
+            : null;
         meal.items.push(
-            makeItem(
-                food,
-                food.servingGrams || DEFAULT_SERVING,
-                searchTab === "favorites" ? "favorite" : "search",
-            ),
+            makeItem(food, grams ?? food.servingGrams ?? DEFAULT_SERVING, source),
         );
     }
     renderItems();
@@ -2408,7 +2373,7 @@ searchCreate.onclick = () => {
 
 searchCancel.onclick = closeSheet;
 iconSearch.onclick = () => openSearch("meal");
-iconStar.onclick = () => openSearch("meal", {tab: "favorites"});
+iconStar.onclick = openQuickPicks;
 
 // ==========================================================================
 // 19. PORTION (#portion-sheet)
@@ -2418,27 +2383,6 @@ let portionIndex = null;
 
 const portionItem = () => meal.items[portionIndex];
 
-const renderPortionInfo = () => {
-    const item = portionItem();
-    const grams = parseNumber(portionGrams.value) || 0;
-    const n = item.nutrition;
-    if (!n) {
-        portionInfo.innerHTML = "";
-        return;
-    }
-    const g = grams / 100;
-    // Compact list: only micronutrients that matter (>= 10% of daily value)
-    const micro = item.micro
-        ? microEntries(item.micro, g)
-            .filter((e) => e.value >= 10)
-            .sort((a, b) => b.value - a.value)
-        : [];
-    portionInfo.innerHTML = `
-        <div class="center small help mono">${macrosText(n, g)}</div>
-        ${healthBar(item.healthScore)}
-        ${micro.length ? `<div class="micro-chips">${micro.map((e) => `<span class="micro-chip mono">${e.label} ${Math.round(e.value)}%</span>`).join("")}</div>` : ""}`;
-};
-
 const openPortion = (i) => {
     portionIndex = i;
     const item = portionItem();
@@ -2447,7 +2391,6 @@ const openPortion = (i) => {
     portionGrams.value = String(item.grams);
 
     const exists = item.foodId != null;
-    portionReplace.classList.toggle("hidden", !exists);
     portionCreate.classList.toggle("hidden", exists);
     portionConfirm.classList.toggle("hidden", !exists);
     portionConfirmItem.classList.toggle(
@@ -2458,18 +2401,15 @@ const openPortion = (i) => {
         item.confirmed,
     );
 
-    renderPortionInfo();
     openSheet(portionSheet);
 };
 
 maskNumber(portionGrams, MAX_GRAMS, 0);
-portionGrams.addEventListener("input", renderPortionInfo);
 
 const shiftPortion = (direction) => {
     const step = findFood(portionItem().foodId)?.servingGrams || DEFAULT_SERVING;
     const grams = (parseNumber(portionGrams.value) || 0) + direction * step;
     portionGrams.value = String(Math.max(0, Math.min(grams, MAX_GRAMS)));
-    renderPortionInfo();
 };
 
 portionMinus.onclick = () => shiftPortion(-1);
@@ -2490,11 +2430,6 @@ portionDelete.onclick = () => {
     meal.items.splice(portionIndex, 1);
     closeSheet();
     renderItems();
-};
-
-portionReplace.onclick = () => {
-    const item = portionItem();
-    openSearch("replace", {index: portionIndex, query: item.name});
 };
 
 portionCreate.onclick = () => {

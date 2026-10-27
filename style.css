@@ -231,6 +231,14 @@ body:not(.photos) .needs-photos {
     padding-left: 10px;
 }
 
+.left-20 {
+    padding-left: 20px;
+}
+
+.top-20 {
+    padding-top: 20px;
+}
+
 .red {
     color: var(--red);
     border-color: var(--red);
@@ -859,10 +867,7 @@ nav > div > button {
 
 .calendar {
     height: 400px;
-}
-
-.calendar-norm {
-    padding-top: 4px;
+    position: relative;
 }
 
 #calendars {
@@ -1325,9 +1330,12 @@ nav > div > button {
 }
 
 .tick {
-    /*position: absolute;*/
     font: 14px sans-serif;
-    /*transform: translate(-50%, -50%);*/
+}
+
+#clock .tick {
+    position: absolute;
+    transform: translate(-50%, -50%);
 }
 
 #white {

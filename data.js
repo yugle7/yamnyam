@@ -192,7 +192,7 @@ window.TRANSLATIONS = {
         noData: "Нет данных за период",
         norm: "Норма",
         calendarNorm: (days) =>
-            `${days} ${ruPlural(days, "день", "дня", "дней")} в норме`,
+            `${days} ${ruPlural(days, "день", "дня", "дней")} в норме по калориям`,
         fact: "Величина",
         sevenDaysAverage: "Среднее за 7 дней",
         consumed: "Получено",
@@ -457,7 +457,7 @@ window.TRANSLATIONS = {
         noData: "No data for the period",
         norm: "Goal",
         calendarNorm: (days) =>
-            `${days} ${days === 1 ? "day" : "days"} in norm`,
+            `${days} normal ${days === 1 ? "day" : "days"} in a row`,
         fact: "Actual",
         sevenDaysAverage: "7-day average",
         trend: "Trend",

@@ -64,7 +64,7 @@ const MONTH = 2;
 const MAX_GRAMS = 5000;
 const DEFAULT_SERVING = 100;
 
-const MEAL_TYPES = [SNACK, BREAKFAST, LUNCH, DINNER];
+const MEAL_TYPES = [BREAKFAST, LUNCH, DINNER, SNACK];
 const PHOTO_MAX_WIDTH = 1280;
 const PHOTO_QUALITY = 0.82;
 
@@ -1595,13 +1595,11 @@ const getCalendarPage = (delta = 0) => {
     const last = new Date(y, m + 1, 0).getDate();
     const todayKey = getDateKey(today);
     const dateKey = getDateKey(date);
-    let normDays = 0;
 
     const dayHtml = (n) => {
         const key = getDateKey(new Date(y, m, n));
         const s = sumMeals(key);
         const color = key > todayKey ? "--help" : "--text";
-        if (inNorm(key)) normDays++;
         return `<button><span style="color: var(${color})" class="${key === dateKey ? "big" : ""}">${n}</span>${getMarkHtml(s)}</button>`;
     };
 
@@ -1613,14 +1611,13 @@ const getCalendarPage = (delta = 0) => {
     const dst = document.createElement("DIV");
     dst.className = "calendar";
     dst.innerHTML = `
+        <div class="small help center top-20">${S.calendarNorm(getNormStreak())}</div>
         <h2 class="row">
             <button class="prev" aria-label="${S.previous}"><svg><use href="sprite.svg#prev"></use></svg></button>
             <span class="big">${S.months[m]} ${y}</span>
             <button class="next" aria-label="${S.next}"><svg><use href="sprite.svg#next"></use></svg></button>
         </h2>
-        <div class="days">${days}</div>
-        <div class="calendar-norm small help center">${S.calendarNorm(normDays)}</div>`;
-
+        <div class="days">${days}</div>`;
     calendarPages[k] = dst;
     return dst;
 };
@@ -3793,6 +3790,16 @@ const inNorm = (key) => {
     return ratio >= 0.8 && ratio <= 1.1;
 };
 
+const getNormStreak = () => {
+    let days = 0;
+    let d = addDays(today, -1);
+    while (inNorm(getDateKey(d))) {
+        days++;
+        d = addDays(d, -1);
+    }
+    return days;
+};
+
 // ==========================================================================
 // 25. STATISTICS: UNIVERSAL RENDERERS (SVG)
 // ==========================================================================
@@ -4196,7 +4203,7 @@ const renderHeatmap = (id, matrix, max) => {
     const rows = [...S.Ws].map((w, d) =>
         `<text class="tick" x="${left - 6}" y="${d * (ch + 2) + ch / 2}" dominant-baseline="middle" text-anchor="end">${w}</text>`,
     ).join("");
-    const cols = [0, 6, 12, 18].map((hr) =>
+    const cols = [0, 3, 6, 9, 12, 15, 18, 21].map((hr) =>
         `<text class="tick" x="${left + hr * cell}" y="${h - 4}" dominant-baseline="auto" text-anchor="start">${hr}</text>`,
     ).join("");
 
@@ -4319,12 +4326,12 @@ const macroImbalance = (sum, goals) => {
     return (deviation * actualTotal) / 2;
 };
 
-const MACRO_COLORS = {protein: "--yellow", fat: "--green", carbs: "--red"};
+const MACRO_COLORS = {protein: "--blue", fat: "--yellow", carbs: "--green"};
 const MEAL_COLORS = {
-    [SNACK]: "--yellow",
+    [SNACK]: "--red",
     [BREAKFAST]: "--blue",
     [LUNCH]: "--green",
-    [DINNER]: "--red",
+    [DINNER]: "--yellow",
 };
 const NUTRIENT_CHARTS = ["fiber", "sugar", "salt", "satFat"];
 const NUTRIENT_COLORS = {
@@ -4356,7 +4363,7 @@ const renderStats = () => {
             ? null
             : average(pastDays(addDays(b.start, -6), b.end).map(dayCalories));
     const series = [
-        {values: calories, color: "--accent", label: S.consumed},
+        {values: calories, color: "--red", label: S.consumed},
         ...(period === WEEK
             ? [{values: buckets.map(weekAverage), color: "--green", label: S.sevenDaysAverage, thin: true}]
             : []),
@@ -4499,7 +4506,7 @@ const renderStats = () => {
         "weight-chart",
         buckets,
         [
-            {values: weights, color: "--accent", label: S.weight},
+            {values: weights, color: "--red", label: S.weight},
             ...(trend
                 ? [
                     {
@@ -4531,7 +4538,7 @@ const renderStats = () => {
     renderVBars(
         "sleep-chart",
         dayBuckets,
-        [{values: sleep, color: "--blue", label: S.sleep}],
+        [{values: sleep, color: "--green", label: S.sleep}],
         person.targets.sleep,
         S.h,
         1,
@@ -4545,7 +4552,7 @@ const renderStats = () => {
     renderVBars(
         "steps-chart",
         dayBuckets,
-        [{values: steps, color: "--green", label: S.steps}],
+        [{values: steps, color: "--yellow", label: S.steps}],
         person.targets.steps,
         "",
         0,

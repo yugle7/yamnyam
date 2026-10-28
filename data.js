@@ -158,6 +158,7 @@ window.TRANSLATIONS = {
 
         /* --- Profile --- */
         goals: "Суточные нормы",
+        GOALS: "ЦЕЛИ",
         birthdate: "Дата рождения",
         sex: "Пол",
         female: "Жен",
@@ -218,7 +219,7 @@ window.TRANSLATIONS = {
         micro: "Микронутриенты",
         macros: "БЖУ",
         balance: "Баланс к норме",
-        mealType: "По приемам пищи",
+        mealType: "Приемы пищи",
         tagsKcal: "По тегам",
         weekday: "По дням недели",
         whatTime: "Во сколько",
@@ -226,7 +227,7 @@ window.TRANSLATIONS = {
         nutrients: "Нутриенты",
         triggers: "Триггеры",
         heatmap: "Часы × дни недели",
-        sumMode: "сумма",
+        gramsMode: "граммы",
         percentMode: "% нормы",
         xSleep: "Сон",
         xSteps: "Шаги",
@@ -424,6 +425,7 @@ window.TRANSLATIONS = {
 
         /* --- Profile --- */
         goals: "Daily goals",
+        GOALS: "GOALS",
         birthdate: "Birth date",
         sex: "Sex",
         female: "Female",
@@ -491,8 +493,8 @@ window.TRANSLATIONS = {
         weekday: "By day of week",
         nutrients: "Fiber, sugar, salt, saturated fat",
         triggers: "Triggers",
-        heatmap: "Hours × days of week",
-        sumMode: "total",
+        heatmap: "When",
+        gramsMode: "grams",
         percentMode: "% of goal",
         xSleep: "Sleep",
         xSteps: "Steps",

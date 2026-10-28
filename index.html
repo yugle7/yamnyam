@@ -250,42 +250,8 @@
     </div>
 
     <div class="card">
-        <h3><span data-i18n="mealType"></span><span class="value help left-10 small"></span></h3>
-        <div class="chart" id="meal-type-chart"></div>
-    </div>
-
-    <div class="card">
-        <h3 data-i18n="whatTime"></h3>
-        <div class="chart" id="hour-heatmap"></div>
-    </div>
-
-    <div class="card">
         <h3><span data-i18n="macros"></span><span class="value help left-10 small"></span></h3>
         <div class="chart" id="macros-chart"></div>
-    </div>
-
-    <div class="card">
-        <h3><span data-i18n="macroImbalance"></span><span class="value help left-10 small"></span></h3>
-        <div class="chart" id="balance-chart"></div>
-    </div>
-
-    <div class="card">
-        <h3><span data-i18n="water"></span><span class="value help left-10 small"></span></h3>
-        <div class="chart" id="water-chart"></div>
-    </div>
-
-    <div class="card">
-        <h3><span data-i18n="nutrients"></span><span class="value help left-10 small"></span></h3>
-        <div class="segment small-segment" id="nutrient-mode" style="--n:2;--i:0">
-            <button data-mode="sum" class="active" data-i18n="sumMode"></button>
-            <button data-mode="pct" data-i18n="percentMode"></button>
-        </div>
-        <div class="chart" id="nutrient-chart"></div>
-    </div>
-
-    <div class="card">
-        <h3 data-i18n="micro"></h3>
-        <div class="chart" id="micro-chart"></div>
     </div>
 
     <div class="card">
@@ -293,6 +259,10 @@
         <div class="chart" id="health-chart"></div>
     </div>
 
+    <div class="card">
+        <h3><span data-i18n="water"></span><span class="value help left-10 small"></span></h3>
+        <div class="chart" id="water-chart"></div>
+    </div>
 
     <div class="card">
         <h3><span data-i18n="weight"></span><span class="value help small left-10"></span></h3>
@@ -307,6 +277,35 @@
     <div class="card">
         <h3><span data-i18n="steps"></span><span class="value help left-10 small"></span></h3>
         <div class="chart" id="steps-chart"></div>
+    </div>
+
+    <div class="card">
+        <h3><span data-i18n="mealType"></span><span class="value help left-10 small"></span></h3>
+        <div class="chart" id="meal-type-chart"></div>
+    </div>
+
+    <div class="card">
+        <h3 data-i18n="whatTime"></h3>
+        <div class="chart" id="hour-heatmap"></div>
+    </div>
+
+    <div class="card">
+        <h3><span data-i18n="macroImbalance"></span><span class="value help left-10 small"></span></h3>
+        <div class="chart" id="balance-chart"></div>
+    </div>
+
+    <div class="card">
+        <h3><span data-i18n="nutrients"></span><span class="value help left-10 small"></span></h3>
+        <div class="segment small-segment" id="nutrient-mode" style="--n:2;--i:0">
+            <button data-mode="sum" class="active" data-i18n="gramsMode"></button>
+            <button data-mode="pct" data-i18n="percentMode"></button>
+        </div>
+        <div class="chart" id="nutrient-chart"></div>
+    </div>
+
+    <div class="card">
+        <h3 data-i18n="micro"></h3>
+        <div class="chart" id="micro-chart"></div>
     </div>
 </section>
 
@@ -359,6 +358,7 @@
             <input type="range" id="activity" min="1" max="2" step="0.025" value="1.375">
         </div>
 
+        <span class="help small" data-i18n="GOALS"></span>
         <div class="row gap-15">
             <div class="field grow">
                 <label class="label" for="target-sleep" data-i18n="sleep"></label>
@@ -530,8 +530,8 @@
                 <use href="sprite.svg#check"></use>
             </svg>
         </button>
-        <button id="portion-delete" class="pad-10 red" data-i18n="delete"></button>
-        <button id="portion-confirm" class="accent" data-i18n="save"></button>
+        <button id="portion-delete" class="pad-10" data-i18n="delete"></button>
+        <button id="portion-confirm" class="accent">OK</button>
     </footer>
 </div>
 

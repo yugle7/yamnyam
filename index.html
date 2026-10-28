@@ -88,7 +88,10 @@
             </div>
             <div id="meal-photo" class="photo hidden"></div>
 
-            <div id="meal-items" class="col gap-10"></div>
+            <div class="col gap-10">
+                <div id="meal-items" class="col gap-10"></div>
+                <div class="row between pad-10" id="meal-total"></div>
+            </div>
 
             <section id="meal-tags">
                 <div class="row add">
@@ -176,10 +179,11 @@
                         <input id="dish-fiber" class="input mono" inputmode="decimal"></label>
                     <label class="field"><span class="label" data-i18n="sugar"></span>
                         <input id="dish-sugar" class="input mono" inputmode="decimal"></label>
-                    <label class="field"><span class="label" data-i18n="freeSugar"></span>
-                        <input id="dish-freeSugar" class="input mono" inputmode="decimal"></label>
                     <label class="field"><span class="label" data-i18n="salt"></span>
                         <input id="dish-salt" class="input mono" inputmode="decimal"></label>
+
+                    <label class="field"><span class="label" data-i18n="freeSugar"></span>
+                        <input id="dish-freeSugar" class="input mono" inputmode="decimal"></label>
                     <label class="field"><span class="label" data-i18n="satFat"></span>
                         <input id="dish-satFat" class="input mono" inputmode="decimal"></label>
                     <label class="field"><span class="label" data-i18n="transFat"></span>
@@ -494,21 +498,24 @@
 <div id="overlay"></div>
 
 <div id="search-sheet" class="sheet tall full" role="dialog" aria-modal="true" data-i18n-aria-label="search">
-    <div class="text-field">
-        <input id="search-input" class="input" type="text" autocomplete="off" enterkeyhint="search"
-               data-i18n-placeholder="searchPlaceholder" data-i18n-aria-label="search">
-        <button id="search-clear" class="clear" data-i18n-aria-label="clear">
+    <div class="row gap-10">
+        <button id="search-back" class="icon-button" data-i18n-aria-label="close">
             <svg class="tool">
-                <use href="sprite.svg#close"></use>
+                <use href="sprite.svg#prev"></use>
             </svg>
         </button>
+        <div class="text-field">
+            <input id="search-input" class="input" type="text" autocomplete="off" enterkeyhint="search"
+                   data-i18n-placeholder="searchPlaceholder" data-i18n-aria-label="search">
+            <button id="search-clear" class="clear" data-i18n-aria-label="clear">
+                <svg class="tool">
+                    <use href="sprite.svg#close"></use>
+                </svg>
+            </button>
+        </div>
     </div>
     <div id="search-tabs" class="chips scroll-x"></div>
     <div id="search-results" class="sheet-scroll"></div>
-    <footer>
-        <button id="search-create" class="accent left"></button>
-        <button id="search-cancel" class="right" data-i18n="cancel"></button>
-    </footer>
 </div>
 
 <div id="portion-sheet" class="sheet" role="dialog" aria-modal="true" data-i18n-aria-label="portion">
@@ -531,7 +538,7 @@
             </button>
         </div>
         <button id="portion-create" class="pad-10 green" data-i18n="create"></button>
-        <button id="portion-delete" class="pad-10" data-i18n="delete"></button>
+        <button id="portion-delete" class="pad-10" data-i18n="remove"></button>
         <button id="portion-confirm" class="accent">OK</button>
     </footer>
 </div>

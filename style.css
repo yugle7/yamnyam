@@ -605,7 +605,7 @@ h3 {
     padding-right: 40px;
 }
 
-.sheet .text-field {
+.sheet > .text-field {
     flex: none;
 }
 
@@ -1272,12 +1272,35 @@ nav > div > button {
 }
 
 /* Поиск */
+#search-sheet {
+    padding: 0;
+}
+
+#search-sheet > .row {
+    padding: max(20px, env(safe-area-inset-top)) 16px 10pxй 10px;
+}
+
+#search-sheet > #search-tabs {
+    padding: 0 16px;
+}
+
+#search-sheet > #search-results {
+    padding: 0 16px max(10px, env(safe-area-inset-bottom));
+}
+
+#search-results {
+    scrollbar-width: none;
+}
+
+#search-results::-webkit-scrollbar {
+    display: none;
+}
+
 .result {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 4px;
-    border-bottom: 1px solid var(--line);
+    padding: 10px 0 10px 10px;
     cursor: pointer;
     line-height: 1.3;
 }

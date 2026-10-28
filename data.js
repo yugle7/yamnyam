@@ -52,8 +52,9 @@ window.TRANSLATIONS = {
         voice: "Голосовой ввод",
         search: "Поиск",
         favorites: "Избранное",
+        my: "Мои",
         quickPicks: "Быстрый выбор",
-        recent: "Недавние",
+        recent: "Недавнее",
         frequent: "Частое",
         total: "Итого",
         notFound: "Не найдено — создайте продукт или блюдо",
@@ -68,7 +69,7 @@ window.TRANSLATIONS = {
         photoError: "Не удалось сохранить фото",
 
         /* --- Search and portion --- */
-        searchPlaceholder: "Название продукта или блюда",
+        searchPlaceholder: "Название еды",
         searchTabs: {
             all: "Все",
             product: "Продукты",
@@ -116,6 +117,7 @@ window.TRANSLATIONS = {
         save: "Сохранить",
         cancel: "Отменить",
         delete: "Удалить",
+        remove: "Убрать",
         close: "Закрыть",
         deleteFoodQuestion: "Удалить продукт? Старые записи не изменятся.",
 
@@ -305,6 +307,7 @@ window.TRANSLATIONS = {
         voice: "Voice input",
         search: "Search",
         favorites: "Favorites",
+        my: "My",
         quickPicks: "Quick picks",
         recent: "Recent",
         frequent: "Frequent",

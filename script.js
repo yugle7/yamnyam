@@ -802,6 +802,7 @@ const iconPlus = $("icon-plus");
 const photoInput = $("photo-input");
 const mealPhoto = $("meal-photo");
 const mealItems = $("meal-items");
+const mealTotal = $("meal-total");
 const tagButtons = $("tag-buttons");
 const editTagsButton = $("edit-tags");
 const noteBlock = $("note-block");
@@ -856,8 +857,7 @@ const searchInput = $("search-input");
 const searchClear = $("search-clear");
 const searchTabs = $("search-tabs");
 const searchResults = $("search-results");
-const searchCreate = $("search-create");
-const searchCancel = $("search-cancel");
+const searchBack = $("search-back");
 
 /* --- Portion --- */
 const portionSheet = $("portion-sheet");
@@ -2071,11 +2071,11 @@ const itemHtml = (item, i) => {
 
 const renderItems = () => {
     const s = sumItems(meal.items);
-    mealItems.innerHTML =
-        meal.items.map((item, i) => itemHtml(item, i)).join("") +
-        (meal.items.length > 1
-            ? `<div class="total small mono top-10">${macrosText(s)}</div>`
-            : "");
+    mealItems.innerHTML = meal.items.map((item, i) => itemHtml(item, i)).join("");
+
+    mealTotal.innerHTML = meal.items.length > 1
+        ? `<div class="small help mono">${macrosText(s)}</div><div>${fmt(s.grams)} ${S.g}</div>`
+        : "";
     renderCta();
 };
 
@@ -2206,17 +2206,13 @@ mealDelete.onclick = () => showModal(S.deleteMealQuestion, () => {
 let searchContext = {type: "meal"};
 let searchTab = "all";
 
-const SEARCH_TABS = ["all", "product", "dish", "recipe", "favorites"];
-const QUICK_TABS = ["recent", "frequent", "favorites"];
+const SEARCH_TABS = ["all", "product", "dish", "recipe"];
+const QUICK_TABS = ["recent", "frequent", "favorites", "my"];
 
 const openSearch = (type, options = {}) => {
     searchContext = {type, ...options};
     searchTab = options.tab || "all";
     searchInput.value = options.query || "";
-    searchCreate.classList.toggle(
-        "hidden",
-        type !== "meal" && type !== "ingredient",
-    );
     renderSearchTabs();
     renderSearchResults();
     openSheet(searchSheet);
@@ -2248,6 +2244,8 @@ const searchActiveFoods = () => {
         return recentPicks().map((p) => p.food);
     if (searchContext.quick && searchTab === "frequent")
         return frequentPicks().map((p) => p.food);
+    if (searchContext.quick && searchTab === "my")
+        return foods.filter((f) => !f.archived);
 
     let dst = getActiveFoods();
     if (searchTab === "favorites") {
@@ -2264,7 +2262,10 @@ const searchActiveFoods = () => {
 const searchFoods = (query) => {
     const dst = searchActiveFoods();
     if (!query.trim()) {
-        if (searchContext.quick && searchTab !== "favorites") {
+        if (
+            searchContext.quick &&
+            (searchTab === "recent" || searchTab === "frequent")
+        ) {
             return dst.slice(0, 50);
         }
         return dst
@@ -2278,19 +2279,18 @@ const searchFoods = (query) => {
 
 const resultHtml = (food) => {
     const favorite = favorites.includes(food.id);
-    const edit = food.custom && searchContext.type === "meal"
+    const act = food.custom && searchContext.type === "meal"
         ? `<button class="icon-button" data-act="edit" aria-label="${S.edit}"><svg class="tool"><use href="sprite.svg#edit"></use></svg></button>`
-        : "";
+        : `<button class="icon-button" data-act="fav" aria-label="${S.favorites}" aria-pressed="${favorite}">
+            <svg class="tool ${favorite ? "starred" : ""}"><use href="sprite.svg#star"></use></svg>
+        </button>`;
     return `<div class="result" data-id="${food.id}" role="button" tabindex="0">
         <div class="col grow">
             <span>${clean(food[lang])}</span>
             <span class="small help mono">${fmt(food.nutrition.calories)} ${S.kcal}</span>
             ${healthBar(food.healthScore)}
         </div>
-        <button class="icon-button" data-act="fav" aria-label="${S.favorites}" aria-pressed="${favorite}">
-            <svg class="tool ${favorite ? "starred" : ""}"><use href="sprite.svg#${favorite ? "star-filled" : "star"}"></use></svg>
-        </button>
-        ${edit}
+        ${act}
     </div>`;
 };
 
@@ -2299,9 +2299,6 @@ const renderSearchResults = () => {
     searchResults.innerHTML = dst.length
         ? dst.map(resultHtml).join("")
         : `<div class="empty">${S.nothingFound}</div>`;
-    searchCreate.textContent = searchInput.value.trim()
-        ? `${S.create} «${searchInput.value.trim()}»`
-        : S.create;
 };
 
 searchInput.addEventListener("input", debounce(renderSearchResults, 150));
@@ -2376,29 +2373,7 @@ searchResults.onkeydown = (e) => {
         pickFood(findFood(+q.dataset.id));
 };
 
-searchCreate.onclick = () => {
-    const name = searchInput.value.trim();
-    const recipe = searchContext.type === "ingredient"
-        ? {
-            dish,
-            name: dishName.value,
-            serving: dishServing.value,
-            yield: dishYield.value,
-            microMode,
-            microHidden: dishMicro.classList.contains("hidden"),
-            scroll: document.querySelector("#dish-page .scroll").scrollTop,
-        }
-        : null;
-    closeSheet();
-    openDishPage({
-        name,
-        action: recipe
-            ? {type: "ingredientAdd", recipe}
-            : {type: "add"},
-    });
-};
-
-searchCancel.onclick = closeSheet;
+searchBack.onclick = closeSheet;
 iconSearch.onclick = () => openSearch("meal");
 iconStar.onclick = openQuickPicks;
 iconPlus.onclick = () => openDishPage({action: {type: "add"}});
@@ -2845,7 +2820,6 @@ const openDishPage = ({food = null, name = "", action}) => {
     renderDishMicro();
     renderIngredients();
     renderDishTags();
-    if (!food && name) matchRef();
     updateDish();
 };
 
@@ -2911,7 +2885,7 @@ const renderDishKind = () => {
 onSegment(dishKind, "kind", (kind) => {
     dish.kind = kind;
     renderDishKind();
-    if (kind !== "recipe") matchRef();
+    if (dish.editing && kind !== "recipe") matchRef();
     updateDish();
 });
 
@@ -2950,11 +2924,11 @@ const matchRef = () => {
 };
 
 const matchRefLater = debounce(() => {
-    if (dish && dish.kind !== "recipe") matchRef();
+    if (dish?.editing && dish.kind !== "recipe") matchRef();
 }, 400);
 
 dishName.addEventListener("input", () => {
-    matchRefLater();
+    if (dish.editing) matchRefLater();
     updateDish();
 });
 
@@ -3028,8 +3002,6 @@ const updateDish = () => {
         Object.entries(dishInputs).forEach(([k, input]) => {
             input.value = fmt(dst.nutrition[k], DISH_LIMITS[k].decimals);
         });
-        console.log(dst.nutrition)
-        console.log(macrosText(dst.nutrition))
         ingredientsTotal.innerHTML = dish.ingredients.length > 1
             ? `<div class="small help mono">${macrosText(dst.nutrition, dst.grams / 100)}</div><div>${fmt(dst.grams)} ${S.g}</div>`
             : "";

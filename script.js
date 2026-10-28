@@ -798,6 +798,7 @@ const iconPhoto = $("icon-photo");
 const iconVoice = $("icon-voice");
 const iconSearch = $("icon-search");
 const iconStar = $("icon-star");
+const iconPlus = $("icon-plus");
 const photoInput = $("photo-input");
 const mealPhoto = $("meal-photo");
 const mealItems = $("meal-items");
@@ -2400,6 +2401,7 @@ searchCreate.onclick = () => {
 searchCancel.onclick = closeSheet;
 iconSearch.onclick = () => openSearch("meal");
 iconStar.onclick = openQuickPicks;
+iconPlus.onclick = () => openDishPage({action: {type: "add"}});
 
 // ==========================================================================
 // 19. PORTION (#portion-sheet)

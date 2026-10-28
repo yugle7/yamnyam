@@ -50,6 +50,22 @@ const MICRO_NORMALS = {
     zinc: 11,
 };
 
+const MICRO_UNITS = {
+    vitaminA: "µg",
+    vitaminC: "mg",
+    vitaminD: "µg",
+    vitaminE: "mg",
+    vitaminK: "µg",
+    vitaminB6: "mg",
+    vitaminB12: "µg",
+    folate: "µg",
+    calcium: "mg",
+    iron: "mg",
+    potassium: "mg",
+    magnesium: "mg",
+    zinc: "mg",
+};
+
 const KCAL_PER_GRAM = {protein: 4, fat: 9, carbs: 4};
 
 const SNACK = 0;
@@ -664,15 +680,13 @@ const parseQuantity = (fragment) => {
     return {count: 1, unit: "pc", name: text};
 };
 
-const makeItem = (food, grams, source, confidence = 1) => ({
+const makeItem = (food, grams, source) => ({
     foodId: food.id,
     name: food[lang],
     grams,
     nutrition: {...food.nutrition},
     micro: {...food.micro},
     healthScore: food.healthScore,
-    confidence,
-    confirmed: false,
     source,
 });
 
@@ -685,7 +699,7 @@ const parseMeal = (text) =>
 
         if (match) {
             return {
-                ...makeItem(match.food, grams, "parse", match.confidence),
+                ...makeItem(match.food, grams, "parse"),
                 fragment: norm(fragment),
             };
         }
@@ -696,15 +710,12 @@ const parseMeal = (text) =>
             nutrition: null,
             micro: null,
             healthScore: null,
-            confidence: 0,
-            confirmed: false,
             source: "parse",
             fragment: norm(fragment),
         };
     });
 
-const isProblem = (item) =>
-    item.foodId == null || (item.confidence < 0.5 && !item.confirmed);
+const isProblem = (item) => item.foodId == null;
 
 // ==========================================================================
 // 8. NUMERIC MASKS
@@ -819,16 +830,14 @@ const dishInputs = {
 };
 const toggleMicro = $("toggle-micro");
 const dishMicro = $("dish-micro");
+const dishMicroMode = $("dish-micro-mode");
+const dishMicroFields = $("dish-micro-fields");
 const dishMicroSource = $("dish-micro-source");
-const dishMicroBars = $("dish-micro-bars");
 const ingredientsBlock = $("ingredients-block");
 const addIngredient = $("add-ingredient");
 const ingredientsList = $("ingredients-list");
 const ingredientsTotal = $("ingredients-total");
 const dishTags = $("dish-tags");
-const dishPhotoButton = $("dish-photo-button");
-const dishPhoto = $("dish-photo");
-const dishPhotoInput = $("dish-photo-input");
 const dishArchive = $("dish-archive");
 const dishSave = $("dish-save");
 const dishCancel = $("dish-cancel");
@@ -857,7 +866,6 @@ const portionMinus = $("portion-minus");
 const portionPlus = $("portion-plus");
 const portionCreate = $("portion-create");
 const portionDelete = $("portion-delete");
-const portionConfirmItem = $("portion-confirm-item");
 const portionConfirm = $("portion-confirm");
 
 /* --- Tags --- */
@@ -1368,9 +1376,7 @@ const referencedPhotos = () =>
     new Set(
         [
             ...meals.map((m) => m.photoId),
-            ...foods.map((f) => f.photoId),
             meal?.photoId,
-            dish?.photoId,
         ].filter((id) => id != null),
     );
 
@@ -2065,23 +2071,33 @@ const itemHtml = (item, i) => {
 const renderItems = () => {
     const s = sumItems(meal.items);
     mealItems.innerHTML =
-        meal.items.map(itemHtml).join("") +
+        meal.items.map((item, i) => itemHtml(item, i)).join("") +
         (meal.items.length > 1
             ? `<div class="total small mono top-10">${macrosText(s)}</div>`
             : "");
     renderCta();
 };
 
+const openItemCreation = (i) => {
+    const item = meal.items[i];
+    openDishPage({name: item.name, action: {type: "replace", index: i}});
+};
+
 mealItems.onclick = (e) => {
     const card = e.target.closest(".card-item");
-    if (card) openPortion(+card.dataset.i);
+    if (!card) return;
+    const i = +card.dataset.i;
+    if (meal.items[i].foodId == null) openItemCreation(i);
+    else openPortion(i);
 };
 
 mealItems.onkeydown = (e) => {
     const card = e.target.closest(".card-item");
     if (card && (e.key === "Enter" || e.key === " ")) {
         e.preventDefault();
-        openPortion(+card.dataset.i);
+        const i = +card.dataset.i;
+        if (meal.items[i].foodId == null) openItemCreation(i);
+        else openPortion(i);
     }
 };
 
@@ -2096,6 +2112,12 @@ const renderMealTags = () => {
         )
         .join("");
     [...tagButtons.children].forEach((q, i) => (q.dataset.tag = dst[i]));
+};
+
+const addFoodTags = (food) => {
+    if (!food.tags?.length) return;
+    food.tags.forEach((tag) => mealTags.add(tag));
+    renderMealTags();
 };
 
 // Shared tag-chip handler for meals and the product editor
@@ -2190,7 +2212,10 @@ const openSearch = (type, options = {}) => {
     searchContext = {type, ...options};
     searchTab = options.tab || "all";
     searchInput.value = options.query || "";
-    searchCreate.classList.toggle("hidden", type !== "meal");
+    searchCreate.classList.toggle(
+        "hidden",
+        type !== "meal" && type !== "ingredient",
+    );
     renderSearchTabs();
     renderSearchResults();
     openSheet(searchSheet);
@@ -2201,8 +2226,8 @@ const openQuickPicks = () => {
     const tab = recentPicks().length
         ? "recent"
         : frequentPicks().length
-          ? "frequent"
-          : "favorites";
+            ? "frequent"
+            : "favorites";
     openSearch("meal", {tab, quick: true});
 };
 
@@ -2258,7 +2283,7 @@ const resultHtml = (food) => {
     return `<div class="result" data-id="${food.id}" role="button" tabindex="0">
         <div class="col grow">
             <span>${clean(food[lang])}</span>
-            <span class="small help mono">${fmt(food.nutrition.calories)} ${S.kcalPer100}</span>
+            <span class="small help mono">${fmt(food.nutrition.calories)} ${S.kcal}</span>
             ${healthBar(food.healthScore)}
         </div>
         <button class="icon-button" data-act="fav" aria-label="${S.favorites}" aria-pressed="${favorite}">
@@ -2317,12 +2342,13 @@ const pickFood = (food) => {
     const source = searchTab === "favorites"
         ? "favorite"
         : searchContext.quick ? searchTab : "search";
-    const grams = searchContext.quick && searchTab === "recent"
-        ? recentPicks().find((p) => p.food.id === food.id)?.grams
-        : null;
-    meal.items.push(
-        makeItem(food, grams ?? food.servingGrams ?? DEFAULT_SERVING, source),
-    );
+
+    const q = source === "recent" && recentPicks().find((p) => p.food.id === food.id);
+
+    const grams = q?.grams || food.servingGrams || DEFAULT_SERVING;
+    meal.items.push(makeItem(food, grams, source));
+
+    addFoodTags(food);
     renderItems();
 };
 
@@ -2351,8 +2377,24 @@ searchResults.onkeydown = (e) => {
 
 searchCreate.onclick = () => {
     const name = searchInput.value.trim();
+    const recipe = searchContext.type === "ingredient"
+        ? {
+            dish,
+            name: dishName.value,
+            serving: dishServing.value,
+            yield: dishYield.value,
+            microMode,
+            microHidden: dishMicro.classList.contains("hidden"),
+            scroll: document.querySelector("#dish-page .scroll").scrollTop,
+        }
+        : null;
     closeSheet();
-    openDishPage({name, action: {type: "add"}});
+    openDishPage({
+        name,
+        action: recipe
+            ? {type: "ingredientAdd", recipe}
+            : {type: "add"},
+    });
 };
 
 searchCancel.onclick = closeSheet;
@@ -2364,26 +2406,25 @@ iconStar.onclick = openQuickPicks;
 // ==========================================================================
 
 let portionIndex = null;
+let portionSource = "meal";
 
-const portionItem = () => meal.items[portionIndex];
+const portionItem = () =>
+    portionSource === "ingredient"
+        ? dish.ingredients[portionIndex]
+        : meal.items[portionIndex];
 
-const openPortion = (i) => {
+const openPortion = (i, source = "meal") => {
     portionIndex = i;
+    portionSource = source;
     const item = portionItem();
+    const food = findFood(item.foodId);
 
-    portionTitle.textContent = item.name;
+    portionTitle.textContent = source === "ingredient" ? food[lang] : item.name;
     portionGrams.value = String(item.grams);
 
     const exists = item.foodId != null;
-    portionCreate.classList.toggle("hidden", exists);
-    portionConfirm.classList.toggle("hidden", !exists);
-    portionConfirmItem.classList.toggle(
-        "hidden",
-        !exists ||
-        item.source !== "parse" ||
-        item.confidence >= 0.8 ||
-        item.confirmed,
-    );
+    portionCreate.classList.toggle("hidden", source === "ingredient" || exists);
+    portionConfirm.classList.toggle("hidden", source !== "ingredient" && !exists);
 
     openSheet(portionSheet);
 };
@@ -2399,28 +2440,37 @@ const shiftPortion = (direction) => {
 portionMinus.onclick = () => shiftPortion(-1);
 portionPlus.onclick = () => shiftPortion(1);
 
-const savePortion = (confirmed) => {
+const savePortion = () => {
     const item = portionItem();
     item.grams = Math.max(1, parseNumber(portionGrams.value) || item.grams);
-    if (confirmed) item.confirmed = true;
     closeSheet();
-    renderItems();
+    if (portionSource === "ingredient") {
+        renderIngredients();
+        updateDish();
+    } else {
+        renderItems();
+    }
 };
 
-portionConfirm.onclick = () => savePortion(false);
-portionConfirmItem.onclick = () => savePortion(true);
+portionConfirm.onclick = savePortion;
 
 portionDelete.onclick = () => {
-    meal.items.splice(portionIndex, 1);
     closeSheet();
-    renderItems();
+    if (portionSource === "ingredient") {
+        dish.ingredients.splice(portionIndex, 1);
+        renderIngredients();
+        updateDish();
+    } else {
+        meal.items.splice(portionIndex, 1);
+        renderItems();
+    }
+
 };
 
 portionCreate.onclick = () => {
     const index = portionIndex;
-    const name = portionItem().name;
     closeSheet();
-    openDishPage({name, action: {type: "replace", index}});
+    openItemCreation(index);
 };
 
 // ==========================================================================
@@ -2689,6 +2739,8 @@ applyWhen.onclick = applyWhenPicker;
 // ==========================================================================
 
 let dish = null;
+let microMode = "amount";
+const dishMicroInputs = {};
 
 const CUSTOM_ID_START = 1000000;
 
@@ -2708,6 +2760,46 @@ const DISH_LIMITS = {
 };
 const PREFILLED = ["fiber", "sugar", "salt", "satFat"];
 
+const renderDishMicro = (micro = dish.micro || emptyMicro()) => {
+    dishMicroFields.innerHTML = MICRO_KEYS.map((k) => {
+        const unit = microMode === "pct" ? "%" : MICRO_UNITS[k];
+        return `<label class="field">
+            <span class="label">${clean(S[k])}</span>
+            <span class="unit-field">
+                <input id="dish-micro-${k}" class="input mono" type="text" inputmode="decimal">
+                <span class="unit">${unit}</span>
+            </span>
+        </label>`;
+    }).join("");
+
+    MICRO_KEYS.forEach((k) => {
+        const input = $(`dish-micro-${k}`);
+        dishMicroInputs[k] = input;
+        const normal = MICRO_NORMALS[k];
+        const value = micro[k] || 0;
+        input.value = fmt(
+            microMode === "pct" && normal ? (value / normal) * 100 : value,
+            1,
+        );
+        input.readOnly = dish.kind === "recipe";
+        if (!input.readOnly) input.removeAttribute("readonly");
+        input.closest(".unit-field").addEventListener(
+            "click",
+            () => input.focus(),
+        );
+        maskNumber(input, 100000, 1);
+        input.addEventListener("input", () => {
+            const amount = parseNumber(input.value) || 0;
+            dish.micro[k] = microMode === "pct" && normal
+                ? (amount / 100) * normal
+                : amount;
+            updateDish();
+        });
+    });
+
+    setSegment(dishMicroMode, microMode, "mode");
+};
+
 const openDishPage = ({food = null, name = "", action}) => {
 
     dish = food
@@ -2717,11 +2809,8 @@ const openDishPage = ({food = null, name = "", action}) => {
             kind: food.kind,
             basis: "100",
             ingredients: food.ingredients.map((i) => ({...i})),
-            micro: food.micro,
-            tags: [...food.tags],
-            photoId: food.photoId,
-            originalPhotoId: food.photoId,
-            addedPhotos: []
+            micro: food.micro ? {...food.micro} : emptyMicro(),
+            tags: new Set(food.tags || []),
         }
         : {
             action,
@@ -2729,8 +2818,7 @@ const openDishPage = ({food = null, name = "", action}) => {
             basis: "100",
             ingredients: [],
             micro: emptyMicro(),
-            tags: [],
-            addedPhotos: [],
+            tags: new Set(),
         };
 
     dishName.value = food ? food[lang] : name;
@@ -2745,25 +2833,58 @@ const openDishPage = ({food = null, name = "", action}) => {
     toggleMicro.textContent = S.showMicro;
     dishArchive.classList.toggle("hidden", !food);
 
+    microMode = "amount";
     setSegment(dishKind, dish.kind, "kind");
     setSegment(dishBasis, dish.basis, "basis");
+    setSegment(dishMicroMode, microMode, "mode");
 
     renderPage("dish", false);
     renderDishKind();
+    renderDishMicro();
     renderIngredients();
     renderDishTags();
-    renderPhoto(dishPhoto, dish.photoId);
     if (!food && name) matchRef();
     updateDish();
 };
 
 const closeDishPage = (food) => {
     const action = dish.action;
+
+    if (action.type === "ingredientAdd") {
+        const recipe = action.recipe;
+        dish = recipe.dish;
+        if (food) {
+            dish.ingredients.push({
+                foodId: food.id,
+                grams: food.servingGrams || DEFAULT_SERVING,
+            });
+        }
+
+        renderPage("dish", false);
+        dishName.value = recipe.name;
+        dishServing.value = recipe.serving;
+        dishYield.value = recipe.yield;
+        microMode = recipe.microMode;
+        dishMicro.classList.toggle("hidden", recipe.microHidden);
+        toggleMicro.textContent = recipe.microHidden ? S.showMicro : S.hideMicro;
+        dishArchive.classList.toggle("hidden", !dish.editing);
+        setSegment(dishKind, dish.kind, "kind");
+        setSegment(dishBasis, dish.basis, "basis");
+        renderDishKind();
+        renderDishMicro();
+        renderIngredients();
+        renderDishTags();
+        updateDish();
+        document.querySelector("#dish-page .scroll").scrollTop = recipe.scroll;
+        return;
+    }
+
     dish = null;
     renderPage("meal", false);
 
     if (food && action.type === "add") {
         meal.items.push(makeItem(food, food.servingGrams, "manual"));
+        addFoodTags(food);
     }
     if (food && action.type === "replace") {
         const old = meal.items[action.index];
@@ -2771,6 +2892,7 @@ const closeDishPage = (food) => {
             ...makeItem(food, old.grams, "manual"),
             fragment: old.fragment,
         };
+        addFoodTags(food);
     }
     renderMeal();
 };
@@ -2781,6 +2903,7 @@ const renderDishKind = () => {
     dishYieldField.classList.toggle("hidden", !recipe);
     ingredientsBlock.classList.toggle("hidden", !recipe);
     Object.values(dishInputs).forEach((input) => (input.readOnly = recipe));
+    Object.values(dishMicroInputs).forEach((input) => (input.readOnly = recipe));
 };
 
 onSegment(dishKind, "kind", (kind) => {
@@ -2795,6 +2918,11 @@ onSegment(dishBasis, "basis", (basis) => {
     updateDish();
 });
 
+onSegment(dishMicroMode, "mode", (mode) => {
+    microMode = mode;
+    renderDishMicro();
+});
+
 /* --- Micronutrients and portion prefill from REFS --- */
 
 const prefill = (input, value, decimals) => {
@@ -2806,10 +2934,11 @@ const prefill = (input, value, decimals) => {
 const matchRef = () => {
     const match = matchFood(dishName.value, REFS);
     dish.refName = match ? match.food[lang] : null;
-    if (!dish.editing || match) dish.micro = match?.food.micro || null;
 
     if (match) {
         const f = match.food;
+        dish.micro = {...(f.micro || emptyMicro())};
+        renderDishMicro();
         prefill(dishServing, f.servingGrams, 0);
         PREFILLED.forEach((k) =>
             prefill(dishInputs[k], f.nutrition[k], DISH_LIMITS[k].decimals),
@@ -2823,8 +2952,6 @@ const matchRefLater = debounce(() => {
 }, 400);
 
 dishName.addEventListener("input", () => {
-    dish.tags = [];
-    renderDishTags();
     matchRefLater();
     updateDish();
 });
@@ -2884,7 +3011,7 @@ const readDish = () => {
             base > 0 &&
             nutrition.protein + nutrition.fat + nutrition.carbs <= 100,
         nutrition,
-        micro: dish.micro,
+        micro: dish.micro || emptyMicro(),
         servingGrams: serving || DEFAULT_SERVING,
         yieldGrams: null,
     };
@@ -2895,13 +3022,16 @@ const updateDish = () => {
     const dst = readDish();
 
     if (dish.kind === "recipe") {
+        dish.micro = dst.micro;
         Object.entries(dishInputs).forEach(([k, input]) => {
             input.value = fmt(dst.nutrition[k], DISH_LIMITS[k].decimals);
         });
-        ingredientsTotal.textContent = dst.recipe.grams
-            ? `${fmt(dst.grams)} ${S.g} · ${macrosText(dst.nutrition, 1)}`
+        console.log(dst.nutrition)
+        console.log(macrosText(dst.nutrition))
+        ingredientsTotal.innerHTML = dish.ingredients.length > 1
+            ? `<div class="small help mono">${macrosText(dst.nutrition, dst.grams / 100)}</div><div>${fmt(dst.grams)} ${S.g}</div>`
             : "";
-        renderIngredientKcal();
+        renderDishMicro();
     }
     dishServing.placeholder = String(
         dish.kind === "recipe" && dst.yieldGrams ? dst.yieldGrams : 100,
@@ -2910,8 +3040,6 @@ const updateDish = () => {
     dishSave.disabled = !dst.valid;
     dishMicroSource.textContent =
         dish.kind !== "recipe" && dish.refName ? S.microFrom(dish.refName) : "";
-    const factor = dst.servingGrams / 100;
-    dishMicroBars.innerHTML = `<div class="h-list">${microBarsHtml(microEntries(dst.micro || emptyMicro(), factor))}</div>`;
 };
 
 toggleMicro.onclick = () => {
@@ -2925,47 +3053,23 @@ const renderIngredients = () => {
     ingredientsList.innerHTML = dish.ingredients
         .map(({foodId, grams}, i) => {
             const food = findFood(foodId);
-            return `<div class="ingredient row gap-10" data-i="${i}">
-            <span class="grow">${clean(food ? food[lang] : "?")}</span>
-            <input class="input grams-input mono" inputmode="numeric" value="${grams}" aria-label="${S.g}">
-            <span class="help small">${S.g}</span>
-            <span class="cal small mono help"></span>
-            <button class="icon-button" data-act="remove" aria-label="${S.delete}">
-                <svg class="tool"><use href="sprite.svg#close"></use></svg>
-            </button>
-        </div>`;
+            if (!food) return "";
+            return itemHtml(makeItem(food, grams, "ingredient"), i);
         })
         .join("");
-    renderIngredientKcal();
 };
-
-const renderIngredientKcal = () => {
-    ingredientsList.querySelectorAll(".ingredient").forEach((q) => {
-        const {foodId, grams} = dish.ingredients[+q.dataset.i];
-        const g = grams / 100;
-        const food = findFood(foodId);
-        q.querySelector(".calories").textContent = food
-            ? `${fmt(food.nutrition.calories * g)} ${S.kcal}`
-            : "";
-    });
-};
-
-ingredientsList.addEventListener("input", (e) => {
-    const input = e.target.closest(".grams-input");
-    if (!input) return;
-    input.value = normalizeNumber(input.value, MAX_GRAMS, 0);
-    const i = +input.closest(".ingredient").dataset.i;
-    dish.ingredients[i].grams = parseNumber(input.value) || 0;
-    updateDish();
-});
 
 ingredientsList.onclick = (e) => {
-    const button = e.target.closest('[data-act="remove"]');
-    if (!button) return;
-    const i = +button.closest(".ingredient").dataset.i;
-    dish.ingredients.splice(i, 1);
-    renderIngredients();
-    updateDish();
+    const card = e.target.closest(".card-item");
+    if (card) openPortion(+card.dataset.i, "ingredient");
+};
+
+ingredientsList.onkeydown = (e) => {
+    const card = e.target.closest(".card-item");
+    if (card && e.target === card && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        openPortion(+card.dataset.i, "ingredient");
+    }
 };
 
 addIngredient.onclick = () => openSearch("ingredient");
@@ -2974,33 +3078,14 @@ addIngredient.onclick = () => openSearch("ingredient");
 
 const renderDishTags = () => {
     dishTags.innerHTML = tags
-        .map(tag => `<button class="tap ${dish.tags.includes(tag) ? "selected" : ""}">${tag}</button>`)
+        .map((tag) =>
+            `<button class="tap ${dish.tags.has(tag) ? "selected" : ""}">${clean(tag)}</button>`,
+        )
         .join("");
+    [...dishTags.children].forEach((q, i) => (q.dataset.tag = tags[i]));
 };
 
 bindTagChips(dishTags, () => dish.tags);
-
-dishPhotoButton.onclick = () => dishPhotoInput.click();
-
-dishPhotoInput.onchange = async () => {
-    const file = dishPhotoInput.files[0];
-    dishPhotoInput.value = "";
-    if (!file || !dish) return;
-    const id = await addPhoto(file);
-    if (!dish) return;
-    if (id == null) return showMessage(S.photoError);
-    if (dish.addedPhotos.includes(dish.photoId)) deletePhoto(dish.photoId);
-    dish.addedPhotos.push(id);
-    dish.photoId = id;
-    renderPhoto(dishPhoto, id);
-};
-
-dishPhoto.onclick = (e) => {
-    if (!e.target.closest(".photo-remove")) return;
-    if (dish.addedPhotos.includes(dish.photoId)) deletePhoto(dish.photoId);
-    dish.photoId = null;
-    renderPhoto(dishPhoto, null);
-};
 
 /* --- Save --- */
 
@@ -3021,7 +3106,6 @@ dishSave.onclick = () => {
         pieceGrams: null,
         healthScore: computeHealth(r.nutrition, r.micro),
         tags: [...dish.tags],
-        photoId: dish.photoId,
         custom: true,
         archived: false,
     };
@@ -3031,16 +3115,10 @@ dishSave.onclick = () => {
     else foods.push(food);
     saveFoods();
 
-    if (dish.originalPhotoId != null && dish.originalPhotoId !== food.photoId) {
-        deletePhoto(dish.originalPhotoId);
-    }
     closeDishPage(food);
 };
 
-dishCancel.onclick = () => {
-    dish.addedPhotos.forEach(deletePhoto);
-    closeDishPage(null);
-};
+dishCancel.onclick = () => closeDishPage(null);
 
 dishArchive.onclick = () =>
     showModal(S.deleteFoodQuestion, () => {
@@ -3049,7 +3127,6 @@ dishArchive.onclick = () =>
         saveFoods();
         favorites = favorites.filter((id) => id !== foods[i].id);
         saveFavorites();
-        dish.addedPhotos.forEach(deletePhoto);
         closeDishPage(null);
     });
 

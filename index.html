@@ -139,11 +139,17 @@
             <div class="row gap-10">
                 <label class="field">
                     <span class="label" data-i18n="servingGrams"></span>
-                    <input id="dish-serving-grams" class="input mono" inputmode="numeric" placeholder="100">
+                    <span class="unit-field">
+                        <input id="dish-serving-grams" class="input mono" inputmode="numeric" placeholder="100">
+                        <span class="unit" data-i18n="g"></span>
+                    </span>
                 </label>
                 <label class="field" id="dish-yield-field">
                     <span class="label" data-i18n="yieldGrams"></span>
-                    <input id="dish-yield" class="input mono" inputmode="numeric">
+                    <span class="unit-field">
+                        <input id="dish-yield" class="input mono" inputmode="numeric">
+                        <span class="unit" data-i18n="g"></span>
+                    </span>
                 </label>
             </div>
 
@@ -160,29 +166,27 @@
 
             <button id="toggle-micro" class="left accent small"></button>
             <div id="dish-micro" class="col gap-10 hidden">
-                <div class="grid-4">
-                    <label class="field"><span class="label" data-i18n="fiber"></span><input id="dish-fiber"
-                                                                                             class="input mono"
-                                                                                             inputmode="decimal"></label>
-                    <label class="field"><span class="label" data-i18n="sugar"></span><input id="dish-sugar"
-                                                                                             class="input mono"
-                                                                                             inputmode="decimal"></label>
-                    <label class="field"><span class="label" data-i18n="freeSugar"></span><input id="dish-freeSugar"
-                                                                                                 class="input mono"
-                                                                                                 inputmode="decimal"></label>
-                    <label class="field"><span class="label" data-i18n="salt"></span><input id="dish-salt"
-                                                                                            class="input mono"
-                                                                                            inputmode="decimal"></label>
-                    <label class="field"><span class="label" data-i18n="satFat"></span><input id="dish-satFat"
-                                                                                              class="input mono"
-                                                                                              inputmode="decimal"></label>
-                    <label class="field"><span class="label" data-i18n="transFat"></span><input id="dish-transFat"
-                                                                                                class="input mono"
-                                                                                                inputmode="decimal"></label>
+                <div class="grid-3">
+                    <label class="field"><span class="label" data-i18n="fiber"></span>
+                        <input id="dish-fiber" class="input mono" inputmode="decimal"></label>
+                    <label class="field"><span class="label" data-i18n="sugar"></span>
+                        <input id="dish-sugar" class="input mono" inputmode="decimal"></label>
+                    <label class="field"><span class="label" data-i18n="freeSugar"></span>
+                        <input id="dish-freeSugar" class="input mono" inputmode="decimal"></label>
+                    <label class="field"><span class="label" data-i18n="salt"></span>
+                        <input id="dish-salt" class="input mono" inputmode="decimal"></label>
+                    <label class="field"><span class="label" data-i18n="satFat"></span>
+                        <input id="dish-satFat" class="input mono" inputmode="decimal"></label>
+                    <label class="field"><span class="label" data-i18n="transFat"></span>
+                        <input id="dish-transFat" class="input mono" inputmode="decimal"></label>
                 </div>
+                <div class="small help" data-i18n="micronutrients"></div>
+                <div class="segment" id="dish-micro-mode" style="--n:2;--i:0">
+                    <button data-mode="amount" data-i18n="microAmount"></button>
+                    <button data-mode="pct" data-i18n="microPercent"></button>
+                </div>
+                <div id="dish-micro-fields" class="grid-3"></div>
                 <div id="dish-micro-source" class="small help"></div>
-                <div class="small help" data-i18n="microPerServing"></div>
-                <div id="dish-micro-bars"></div>
             </div>
 
             <div id="ingredients-block" class="col gap-10">
@@ -191,15 +195,12 @@
                     <button id="add-ingredient" class="right small accent" data-i18n="add"></button>
                 </div>
                 <div id="ingredients-list" class="col gap-10"></div>
-                <div class="small help mono" id="ingredients-total"></div>
+                <div class="row between pad-10" id="ingredients-total"></div>
             </div>
 
-            <div id="dish-tags" class="chips"></div>
-
-            <div class="row gap-10 needs-photos">
-                <button id="dish-photo-button" class="tap" data-i18n="photo"></button>
-                <div id="dish-photo" class="photo hidden"></div>
-                <input id="dish-photo-input" type="file" accept="image/*" hidden>
+            <div class="col gap-10">
+                <h3 data-i18n="tags"></h3>
+                <div id="dish-tags" class="chips"></div>
             </div>
 
             <button id="dish-archive" class="red hidden" data-i18n="delete"></button>
@@ -525,11 +526,6 @@
             </button>
         </div>
         <button id="portion-create" class="pad-10 green" data-i18n="create"></button>
-        <button id="portion-confirm-item" class="pad-10" data-i18n-aria-label="confirmItem" data-i18n-title="confirmItem">
-            <svg>
-                <use href="sprite.svg#check"></use>
-            </svg>
-        </button>
         <button id="portion-delete" class="pad-10" data-i18n="delete"></button>
         <button id="portion-confirm" class="accent">OK</button>
     </footer>

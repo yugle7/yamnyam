@@ -1472,7 +1472,6 @@
       pieceGrams: pieceGrams || null,
       healthScore: null,
       tags: [],
-      photoId: null,
       custom: false,
       archived: false,
     }),

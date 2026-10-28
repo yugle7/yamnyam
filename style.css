@@ -1281,11 +1281,26 @@ nav > div > button {
 }
 
 #search-sheet > #search-tabs {
-    padding: 0 16px;
+    padding: 0 20px;
+}
+
+#search-tabs .tap {
+    min-height: 38px;
+    padding: 8px 4px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: var(--help);
+}
+
+#search-tabs .tap.selected {
+    background: transparent;
+    color: var(--accent);
+    border-bottom-color: var(--accent);
 }
 
 #search-sheet > #search-results {
-    padding: 0 16px max(10px, env(safe-area-inset-bottom));
+    padding: 0 10px max(10px, env(safe-area-inset-bottom));
 }
 
 #search-results {

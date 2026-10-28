@@ -1277,7 +1277,7 @@ nav > div > button {
 }
 
 #search-sheet > .row {
-    padding: max(20px, env(safe-area-inset-top)) 16px 10pxй 10px;
+    padding: max(20px, env(safe-area-inset-top)) 16px 10px 10px;
 }
 
 #search-sheet > #search-tabs {

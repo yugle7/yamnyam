@@ -680,14 +680,13 @@ const parseQuantity = (fragment) => {
     return {count: 1, unit: "pc", name: text};
 };
 
-const makeItem = (food, grams, source) => ({
+const makeItem = (food, grams) => ({
     foodId: food.id,
     name: food[lang],
     grams,
     nutrition: {...food.nutrition},
     micro: {...food.micro},
     healthScore: food.healthScore,
-    source,
 });
 
 const parseMeal = (text) =>
@@ -699,7 +698,7 @@ const parseMeal = (text) =>
 
         if (match) {
             return {
-                ...makeItem(match.food, grams, "parse"),
+                ...makeItem(match.food, grams),
                 fragment: norm(fragment),
             };
         }
@@ -710,7 +709,6 @@ const parseMeal = (text) =>
             nutrition: null,
             micro: null,
             healthScore: null,
-            source: "parse",
             fragment: norm(fragment),
         };
     });
@@ -2240,12 +2238,11 @@ const renderSearchTabs = () => {
 };
 
 const searchActiveFoods = () => {
-    if (searchContext.quick && searchTab === "recent")
-        return recentPicks().map((p) => p.food);
-    if (searchContext.quick && searchTab === "frequent")
-        return frequentPicks().map((p) => p.food);
-    if (searchContext.quick && searchTab === "my")
-        return foods.filter((f) => !f.archived);
+    if (searchContext.quick) {
+        if (searchTab === "recent") return recentPicks().map((p) => p.food);
+        if (searchTab === "frequent") return frequentPicks().map((p) => p.food);
+        if (searchTab === "my") return foods.filter((f) => !f.archived);
+    }
 
     let dst = getActiveFoods();
     if (searchTab === "favorites") {
@@ -2337,14 +2334,11 @@ const pickFood = (food) => {
         return updateDish();
     }
 
-    const source = searchTab === "favorites"
-        ? "favorite"
-        : searchContext.quick ? searchTab : "search";
-
-    const q = source === "recent" && recentPicks().find((p) => p.food.id === food.id);
-
-    const grams = q?.grams || food.servingGrams || DEFAULT_SERVING;
-    meal.items.push(makeItem(food, grams, source));
+    const recent = searchContext.quick && searchTab === "recent"
+        ? recentPicks().find((p) => p.food.id === food.id)
+        : null;
+    const grams = recent?.grams || food.servingGrams || DEFAULT_SERVING;
+    meal.items.push(makeItem(food, grams));
 
     addFoodTags(food);
     renderItems();
@@ -2753,11 +2747,9 @@ const renderDishMicro = (micro = dish.micro || emptyMicro()) => {
         const input = $(`dish-micro-${k}`);
         dishMicroInputs[k] = input;
         const normal = MICRO_NORMALS[k];
+        const percent = microMode === "pct" && normal;
         const value = micro[k] || 0;
-        input.value = fmt(
-            microMode === "pct" && normal ? (value / normal) * 100 : value,
-            1,
-        );
+        input.value = fmt(percent ? (value / normal) * 100 : value, 1);
         input.readOnly = dish.kind === "recipe";
         if (!input.readOnly) input.removeAttribute("readonly");
         input.closest(".unit-field").addEventListener(
@@ -2767,9 +2759,7 @@ const renderDishMicro = (micro = dish.micro || emptyMicro()) => {
         maskNumber(input, 100000, 1);
         input.addEventListener("input", () => {
             const amount = parseNumber(input.value) || 0;
-            dish.micro[k] = microMode === "pct" && normal
-                ? (amount / 100) * normal
-                : amount;
+            dish.micro[k] = percent ? (amount / 100) * normal : amount;
             updateDish();
         });
     });
@@ -2859,13 +2849,13 @@ const closeDishPage = (food) => {
     renderPage("meal", false);
 
     if (food && action.type === "add") {
-        meal.items.push(makeItem(food, food.servingGrams, "manual"));
+        meal.items.push(makeItem(food, food.servingGrams));
         addFoodTags(food);
     }
     if (food && action.type === "replace") {
         const old = meal.items[action.index];
         meal.items[action.index] = {
-            ...makeItem(food, old.grams, "manual"),
+            ...makeItem(food, old.grams),
             fragment: old.fragment,
         };
         addFoodTags(food);
@@ -3028,7 +3018,7 @@ const renderIngredients = () => {
         .map(({foodId, grams}, i) => {
             const food = findFood(foodId);
             if (!food) return "";
-            return itemHtml(makeItem(food, grams, "ingredient"), i);
+            return itemHtml(makeItem(food, grams), i);
         })
         .join("");
 };
@@ -3690,7 +3680,8 @@ const daySummaryOf = (list) => {
     const byType = {};
     for (const m of list) {
         all.push(...m.items);
-        (byType[m.type] ??= []).push(...m.items);
+        if (!byType[m.type]) byType[m.type] = [];
+        byType[m.type].push(...m.items);
     }
     const s = sumItems(all);
     return {
@@ -4278,7 +4269,7 @@ const renderStats = () => {
     const rangeMeals = meals.filter(
         (m) => m.eaten >= start && m.eaten < end && m.eaten <= Date.now(),
     );
-    const field = (k) => sums.map((s) => s?.[k] ?? null);
+    const field = (k) => sums.map((s) => (s?.[k] == null ? null : s[k]));
     const dayBuckets =
         period === DAY ? [{label: getDateText(start), start, end}] : buckets;
 
@@ -4519,9 +4510,8 @@ const renderStats = () => {
         const sorted = MICRO_KEYS.map((k) => ({
             label: S[k],
             value: micro[k],
-        })).sort((a, b) => (b.value ?? -1) - (a.value ?? -1));
-        $("micro-chart").innerHTML =
-            `<div class="h-list">${microBarsHtml(sorted)}</div>`;
+        })).sort((a, b) => (b.value || 0) - (a.value || 0));
+        $("micro-chart").innerHTML = `<div class="h-list">${microBarsHtml(sorted)}</div>`;
     }
 };
 

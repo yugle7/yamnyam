@@ -19,9 +19,6 @@
     --accent: var(--blue);
     --radius: 12px;
 
-    --fill: none;
-    --mark: none;
-
     --value: 50%;
     --count: 0;
     --total: 1;
@@ -187,9 +184,6 @@ textarea {
     user-select: text;
 }
 
-/*:focus-visible {*/
-/*}*/
-
 /* ==========================================================================
    3. УТИЛИТЫ
    ========================================================================== */
@@ -203,10 +197,6 @@ body:not(.photos) .needs-photos {
 }
 
 /* Типографика */
-.gray {
-    color: gray !important;
-}
-
 .small {
     font-size: 14px !important;
 }
@@ -229,14 +219,6 @@ body:not(.photos) .needs-photos {
 
 .left-10 {
     padding-left: 10px;
-}
-
-.left-20 {
-    padding-left: 20px;
-}
-
-.top-10 {
-    padding-top: 10px;
 }
 
 .top-20 {
@@ -291,10 +273,6 @@ body:not(.photos) .needs-photos {
 }
 
 /* Отступы / зазоры */
-.gap-8 {
-    gap: 8px;
-}
-
 .gap-10 {
     gap: 10px;
 }
@@ -336,15 +314,7 @@ body:not(.photos) .needs-photos {
     position: relative;
 }
 
-/* Инлайновые метки (счетчики на иконках) */
-small {
-    position: absolute;
-    top: -3px;
-    right: -3px;
-    font-size: 12px;
-    color: gray;
-}
-
+/* Инлайновые метки */
 i {
     position: absolute;
     left: 50%;
@@ -418,10 +388,6 @@ button svg.tool,
 .tap.red {
     color: var(--red);
     border-color: var(--red);
-}
-
-.tap.wide {
-    width: 100%;
 }
 
 .chip {
@@ -553,12 +519,6 @@ h3 {
     gap: 4px;
     min-width: 0;
     flex: 1;
-}
-
-.row-10 {
-    display: flex;
-    flex-direction: row;
-    gap: 10px
 }
 
 .label {
@@ -773,28 +733,6 @@ textarea.input {
 }
 
 /* CTA и закрытие */
-.fab-primary {
-    position: fixed;
-    left: 50%;
-    bottom: calc(14px + env(safe-area-inset-bottom));
-    z-index: 2;
-    width: min(460px, calc(100% - 40px));
-    min-height: 52px;
-    padding: 0 20px;
-    transform: translateX(-50%);
-    border-radius: 26px;
-    background: var(--accent);
-    color: var(--bg);
-    font-size: 17px;
-    line-height: 1.2;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
-}
-
-.fab-primary:disabled {
-    opacity: 0.35;
-    box-shadow: none;
-}
-
 .fab-round {
     position: fixed;
     right: 14px;
@@ -976,17 +914,6 @@ nav > div > button {
     font-size: 14px;
 }
 
-.days > button > small {
-    top: auto;
-    right: auto;
-    bottom: -5px;
-    left: 50%;
-    z-index: 1;
-    transform: translateX(-50%);
-    font-size: 9px;
-    color: var(--help);
-}
-
 .today {
     color: var(--accent);
 }
@@ -1000,52 +927,12 @@ nav > div > button {
     color: var(--bg);
 }
 
-/* Дни с приёмами пищи: дата окрашивается цветом оценки здоровья */
-.days > button > span.has-mark {
-    color: var(--mark);
-}
-
 .empty {
     pointer-events: none;
     padding: 24px 0;
     text-align: center;
     color: var(--help);
     font-size: 13px;
-}
-
-/* Сводка дня */
-#day-summary {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    width: 100%;
-    padding: 12px 20px;
-    line-height: 1.3;
-    text-align: center;
-}
-
-.cal-bar {
-    display: flex;
-    flex-direction: column-reverse;
-    gap: 6px;
-}
-
-.cal-bar .bar {
-    height: 8px;
-    border-radius: 4px;
-    background: linear-gradient(
-            to right,
-            var(--accent) calc(var(--fill) * 100%),
-            var(--line) calc(var(--fill) * 100%)
-    );
-}
-
-.cal-bar.over .bar {
-    background: var(--red);
-}
-
-.cal-bar .labels {
-    font-size: 16px;
 }
 
 /* Список приемов */
@@ -1121,22 +1008,6 @@ nav > div > button {
     field-sizing: content;
 }
 
-.micro-chips {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 4px;
-}
-
-.micro-chip {
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: var(--head);
-    border: 1px solid var(--line);
-    font-size: 13px;
-    color: var(--text);
-}
-
 #icon-voice.listening svg {
     stroke: var(--red);
     animation: pulse 1s infinite;
@@ -1183,14 +1054,6 @@ nav > div > button {
     }
 }
 
-.dot {
-    width: 10px;
-    min-width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--dot);
-}
-
 .total {
     text-align: right;
     color: var(--help);
@@ -1206,18 +1069,15 @@ nav > div > button {
     line-height: 1.3;
 }
 
-/* Ингредиенты */
-
 #toggle-micro,
-#add-ingredient,
-#meal-delete,
-#dish-archive {
+#add-ingredient {
     line-height: 1.3;
     padding: 6px 0;
 }
 
 #meal-delete,
 #dish-archive {
+    line-height: 1.3;
     padding: 20px;
 }
 
@@ -1294,7 +1154,7 @@ nav > div > button {
     padding: max(20px, env(safe-area-inset-top)) 16px 10px 10px;
 }
 
-#search-sheet > #search-tabs {
+#search-tabs {
     padding: 0 20px;
 }
 
@@ -1313,11 +1173,8 @@ nav > div > button {
     border-bottom-color: var(--accent);
 }
 
-#search-sheet > #search-results {
-    padding: 0 10px max(10px, env(safe-area-inset-bottom));
-}
-
 #search-results {
+    padding: 0 10px max(10px, env(safe-area-inset-bottom));
     scrollbar-width: none;
 }
 
@@ -1542,11 +1399,6 @@ nav > div > button {
     cursor: pointer;
 }
 
-#day-meal-shares .share {
-    width: 44px;
-    text-align: right;
-}
-
 /* ==========================================================================
    9. ОВЕРЛЕЙ
    ========================================================================== */
@@ -1653,15 +1505,7 @@ nav > div > button {
     font-size: 16px;
 }
 
-/* Группы и карточки */
-h2.group {
-    padding: 24px 0 12px;
-    font-size: 13px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--help);
-}
-
+/* Карточки */
 .card {
     padding: 0 0 32px;
 }

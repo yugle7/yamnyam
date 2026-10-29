@@ -134,7 +134,7 @@ window.TRANSLATIONS = {
         salt: "Соль",
         satFat: "Нас. жиры",
         unsatFat: "Ненас. жиры",
-        transFat: "Тр. жиры",
+        transFat: "Трансжиры",
         g: "г",
         kg: "кг",
         ml: "мл",

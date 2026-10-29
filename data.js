@@ -196,7 +196,7 @@ window.TRANSLATIONS = {
         noData: "Нет данных за период",
         norm: "Норма",
         calendarNorm: (days) =>
-            `${days} ${ruPlural(days, "день", "дня", "дней")} в норме по калориям`,
+            `${days} ${ruDays(days)} в норме по калориям`,
         fact: "Величина",
         sevenDaysAverage: "Среднее за 7 дней",
         consumed: "Получено",
@@ -316,7 +316,7 @@ window.TRANSLATIONS = {
         tags: "Tags",
         change: "Change",
         note: "Note",
-        notePlaceholder: "How you felt, where you ate…",
+        notePlaceholder: "How you felt, where you ate?",
         confirm: "Save",
         checkItems: (n) => `Check ${n} ${n === 1 ? "item" : "items"}`,
         deleteMealQuestion: "Delete this meal?",

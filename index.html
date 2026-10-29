@@ -102,7 +102,15 @@
             </section>
 
             <details id="note-block">
-                <summary data-i18n="note"></summary>
+                <summary>
+                    <svg class="plus" aria-hidden="true">
+                        <use href="sprite.svg#plus"></use>
+                    </svg>
+                    <svg class="minus" aria-hidden="true">
+                        <use href="sprite.svg#minus"></use>
+                    </svg>
+                    <span data-i18n="note"></span>
+                </summary>
                 <textarea id="meal-note" class="input" maxlength="280" rows="3"
                           data-i18n-placeholder="notePlaceholder"></textarea>
             </details>

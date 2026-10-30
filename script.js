@@ -2487,10 +2487,46 @@ const openPortion = (i, source = "meal") => {
     portionGrams.value = String(item.grams);
 
     const exists = item.foodId != null;
+    portionTitle.dataset.foodId = exists ? item.foodId : "";
+    portionTitle.tabIndex = exists ? 0 : -1;
     portionCreate.classList.toggle("hidden", source === "ingredient" || exists);
     portionConfirm.classList.toggle("hidden", source !== "ingredient" && !exists);
 
     openSheet(portionSheet);
+};
+
+const openPortionDetails = () => {
+    const foodId = Number(portionTitle.dataset.foodId);
+    if (!foodId) return;
+    const food = findFood(foodId);
+    if (!food) return;
+
+    const recipe = portionSource === "ingredient"
+        ? {
+            dish,
+            name: dishName.value,
+            serving: dishServing.value,
+            yield: dishYield.value,
+            microMode,
+            microHidden: dishMicro.classList.contains("hidden"),
+            scroll: document.querySelector("#dish-page .scroll").scrollTop,
+        }
+        : null;
+
+    closeSheet();
+    openDishPage({
+        food,
+        action: recipe
+            ? {type: "ingredientView", recipe}
+            : {type: "edit"},
+    });
+};
+
+portionTitle.onclick = openPortionDetails;
+portionTitle.onkeydown = (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    openPortionDetails();
 };
 
 maskNumber(portionGrams, MAX_GRAMS, 0);
@@ -2909,10 +2945,10 @@ const openDishPage = ({food = null, name = "", action}) => {
 const closeDishPage = (food) => {
     const action = dish.action;
 
-    if (action.type === "ingredientAdd") {
+    if (action.type === "ingredientAdd" || action.type === "ingredientView") {
         const recipe = action.recipe;
         dish = recipe.dish;
-        if (food) {
+        if (food && action.type === "ingredientAdd") {
             dish.ingredients.push({
                 foodId: food.id,
                 grams: food.servingGrams || DEFAULT_SERVING,

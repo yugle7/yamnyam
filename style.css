@@ -1199,6 +1199,11 @@ nav > div > button {
 /* Порция */
 #portion-sheet h3 {
     padding-right: 0;
+    cursor: pointer;
+}
+
+#portion-title[data-food-id=""] {
+    cursor: default;
 }
 
 #portion-quick {

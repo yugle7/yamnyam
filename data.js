@@ -161,6 +161,7 @@ window.TRANSLATIONS = {
         /* --- Profile --- */
         goals: "Суточные нормы",
         GOALS: "ЦЕЛИ",
+        NORMS: "НОРМА",
         birthdate: "Дата рождения",
         sex: "Пол",
         female: "Жен",
@@ -429,6 +430,7 @@ window.TRANSLATIONS = {
         /* --- Profile --- */
         goals: "Daily goals",
         GOALS: "GOALS",
+        NORMS: "NORMS",
         birthdate: "Birth date",
         sex: "Sex",
         female: "Female",

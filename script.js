@@ -137,6 +137,7 @@ const REFS = Array.isArray(window.REFS)
     : (console.warn("window.REFS is not an array, food base is empty"), []);
 const translations = window.TRANSLATIONS || {};
 const PHOTO_API_URL = window.PHOTO_API_URL || "";
+const CLOUD_FOOD_API_URL = "https://functions.yandexcloud.net/GET_MEAL_FUNCTION_ID";
 
 // ==========================================================================
 // 3. STATE
@@ -591,6 +592,38 @@ const rankFoods = (query, activeFoods = getActiveFoods()) => {
 
 const matchFood = (text, activeFoods) => rankFoods(text, activeFoods)[0] || null;
 
+const fetchCloudFoods = async (names) => {
+    const queries = [...new Set(names.map(clean).filter(Boolean))];
+    if (!queries.length) return [];
+    try {
+        const query = queries.map(encodeURIComponent).join(",");
+        const res = await fetch(`${CLOUD_FOOD_API_URL}?query=${query}`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+    } catch {
+        return [];
+    }
+};
+
+const mergeCloudFoods = (cloudFoods) => {
+    const activeFoods = getActiveFoods();
+    let added = 0;
+
+    cloudFoods.forEach((food) => {
+        const match = matchFood(food[lang], activeFoods);
+        if (match && match.confidence >= 0.8) return;
+
+        food.id = nextFoodId();
+        foods.push(food);
+        activeFoods.push(food);
+        added++;
+    });
+
+    if (added) saveFoods();
+    return added;
+};
+
 // ==========================================================================
 // 7. PARSER
 // ==========================================================================
@@ -641,8 +674,8 @@ const splitFragments = (text) =>
         .filter(Boolean)
         .flatMap((part) => {
             const name = clean(parseQuantity(part).name);
-            const whole = name ? matchFood(name) : null;
-            if (whole && whole.confidence >= 0.9) return [part];
+            const match = name ? matchFood(name) : null;
+            if (match && match.confidence >= 0.9) return [part];
             return part.split(/\s+(?:и|с|со|and|with)\s+|\s*\+\s*/i);
         })
         .map(norm)
@@ -1289,13 +1322,13 @@ const addPhoto = async (file) => {
 };
 
 const presign = async (action, key) => {
-    const response = await fetch(PHOTO_API_URL, {
+    const res = await fetch(PHOTO_API_URL, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({action, key, mime: "image/jpeg"}),
     });
-    if (!response.ok) throw new Error(`presign ${response.status}`);
-    return (await response.json()).url;
+    if (!res.ok) throw new Error(`presign ${res.status}`);
+    return (await res.json()).url;
 };
 
 const syncPhotos = async () => {
@@ -1863,6 +1896,8 @@ let mealTags = new Set();
 let originalPhotoId = null;
 let addedPhotos = [];
 let typeTouched = false;
+let cloudToken = 0;
+let cloudMealNames = "";
 
 const autoType = (eaten) => {
     const h = new Date(eaten).getHours();
@@ -1888,6 +1923,8 @@ const newMeal = () => {
 };
 
 const openMeal = (m, isNew) => {
+    cloudToken++;
+    cloudMealNames = "";
     meal = m;
     mealTags = new Set(meal.tags);
     originalPhotoId = meal.photoId;
@@ -1931,6 +1968,7 @@ mealTime.onclick = () => openWhenPicker(toHour);
 /* --- Text and parsing --- */
 
 const applyParse = () => {
+    const token = ++cloudToken;
     const parsed = parseMeal(mealText.value);
     const old = meal.items.filter((i) => i.fragment != null);
     const keep = meal.items.filter((i) => i.fragment == null);
@@ -1940,11 +1978,35 @@ const applyParse = () => {
         const same = old.find((o) => !used.has(o) && o.fragment === item.fragment);
         if (!same) return item;
         used.add(same);
+        if (same.foodId == null && item.foodId != null) {
+            return {...item, grams: same.grams, fragment: same.fragment};
+        }
         return same;
     });
 
     meal.items = [...keep, ...next];
     renderItems();
+    loadCloudItems(token);
+};
+
+const loadCloudItems = async (token) => {
+    if (!meal) return;
+
+    const names = [...new Set(
+        meal.items
+            .filter((item) => item.foodId == null)
+            .map((item) => item.name)
+            .filter(Boolean),
+    )];
+    if (!names.length) return;
+
+    const key = names.join(",");
+    if (cloudMealNames === key) return;
+    cloudMealNames = key;
+
+    const cloudFoods = await fetchCloudFoods(names);
+    if (!meal || token !== cloudToken) return;
+    if (mergeCloudFoods(cloudFoods)) applyParse();
 };
 
 const parseLater = debounce(applyParse, 400);
@@ -2203,6 +2265,7 @@ mealDelete.onclick = () => showModal(S.deleteMealQuestion, () => {
 
 let searchContext = {type: "meal"};
 let searchTab = "all";
+let cloudSearchKey = "";
 
 const SEARCH_TABS = ["all", "product", "dish", "recipe"];
 const QUICK_TABS = ["recent", "frequent", "favorites", "my"];
@@ -2211,6 +2274,7 @@ const openSearch = (type, options = {}) => {
     searchContext = {type, ...options};
     searchTab = options.tab || "all";
     searchInput.value = options.query || "";
+    cloudSearchKey = "";
     renderSearchTabs();
     renderSearchResults();
     openSheet(searchSheet);
@@ -2292,13 +2356,41 @@ const resultHtml = (food) => {
 };
 
 const renderSearchResults = () => {
-    const dst = searchFoods(searchInput.value);
+    const query = searchInput.value.trim();
+    const dst = searchFoods(query);
     searchResults.innerHTML = dst.length
         ? dst.map(resultHtml).join("")
         : `<div class="empty">${S.nothingFound}</div>`;
+
+    if (!query) {
+        cloudSearchKey = "";
+        return;
+    }
+    if (
+        dst.length ||
+        searchContext.quick ||
+        (searchTab !== "all" && searchTab !== "product")
+    ) return;
+
+    const key = `${searchTab}:${query}`;
+    if (cloudSearchKey === key) return;
+    cloudSearchKey = key;
+    fetchCloudFoods([query]).then((cloudFoods) => {
+        if (
+            searchInput.value.trim() !== query ||
+            !searchSheet.classList.contains("open")
+        ) return;
+        if (mergeCloudFoods(cloudFoods)) renderSearchResults();
+    });
 };
 
-searchInput.addEventListener("input", debounce(renderSearchResults, 150));
+searchInput.addEventListener(
+    "input",
+    debounce(() => {
+        cloudSearchKey = "";
+        renderSearchResults();
+    }, 150),
+);
 
 searchClear.onclick = () => {
     searchInput.value = "";
@@ -2310,6 +2402,7 @@ searchTabs.onclick = (e) => {
     const button = e.target.closest("button");
     if (!button) return;
     searchTab = button.dataset.tab;
+    cloudSearchKey = "";
     renderSearchTabs();
     renderSearchResults();
 };

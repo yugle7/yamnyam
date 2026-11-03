@@ -1672,6 +1672,18 @@ nav > div > button {
     );
 }
 
+.to {
+    width: 24px;
+    height: 24px;
+    padding: 2px;
+
+    stroke: var(--blue);
+    cursor: pointer;
+    align-self: start;
+    justify-content: center;
+    line-height: 1;
+}
+
 
 /* Подсказка */
 #chart-tip {

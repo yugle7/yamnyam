@@ -11,6 +11,10 @@
         <line x1="3" y1="10" x2="21" y2="10"/>
     </symbol>
 
+    <symbol id="tip" viewBox="0 0 24 24">
+        <path d="M12 19V19M12 14.8571C12 11.6429 15 12.3571 15 9.85714C15 8.27919 13.6568 7 12 7C10.6567 7 9.51961 7.84083 9.13733 9"/>
+    </symbol>
+
     <symbol id="stats" viewBox="0 0 24 24">
         <circle cx="6" cy="18" r="4" stroke-dasharray="6 1000" stroke-dashoffset="-6"/>
         <line x1="2" y1="1" x2="2" y2="18.2"/>

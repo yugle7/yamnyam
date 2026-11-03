@@ -2340,11 +2340,9 @@ const searchFoods = (query) => {
 
 const resultHtml = (food) => {
     const favorite = favorites.includes(food.id);
-    const act = food.custom && searchContext.type === "meal"
-        ? `<button class="icon-button" data-act="edit" aria-label="${S.edit}"><svg class="tool"><use href="sprite.svg#edit"></use></svg></button>`
-        : `<button class="icon-button" data-act="fav" aria-label="${S.favorites}" aria-pressed="${favorite}">
-            <svg class="tool ${favorite ? "starred" : ""}"><use href="sprite.svg#star"></use></svg>
-        </button>`;
+    const act = `<button class="icon-button" data-act="fav" aria-label="${S.favorites}" aria-pressed="${favorite}">
+        <svg class="tool ${favorite ? "starred" : ""}"><use href="sprite.svg#star"></use></svg>
+    </button>`;
     return `<div class="result" data-id="${food.id}" role="button" tabindex="0">
         <div class="col grow">
             <span>${clean(food[lang])}</span>

@@ -2,7 +2,7 @@
 // 1. CONSTANTS
 // ==========================================================================
 
-const APP_NAME = "num-num";
+const APP_NAME = "yamnyam";
 
 const NUTRIENT_KEYS = [
     "calories",
